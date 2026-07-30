@@ -1,0 +1,1530 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>Bellavista International — Gestione Finanziaria</title>
+<style>
+  :root{
+    --navy:#1F2D5C; --navy2:#2E4057; --gold:#C9A84C; --lightgold:#FFF4D6;
+    --lightblue:#DCE9F7; --green:#1E8449; --red:#922B21; --grey:#F5F5F5;
+    --border:#D9D9D9; --text:#222;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:Arial, Helvetica, sans-serif; margin:0; background:var(--grey); color:var(--text);}
+  header{background:var(--navy); color:#fff; padding:18px 24px;}
+  header h1{margin:0; font-size:20px;}
+  header p{margin:4px 0 0; font-size:12px; color:#cdd6f0;}
+  nav{display:flex; background:var(--navy2); flex-wrap:nowrap; overflow-x:auto; scrollbar-width:thin;}
+  nav button{flex:0 0 auto; white-space:nowrap; background:none; border:none; color:#fff; padding:12px 14px;
+    cursor:pointer; font-size:13px; font-weight:bold; border-bottom:3px solid transparent;}
+  nav button:hover{background:rgba(255,255,255,0.08);}
+  nav button.active{border-bottom:3px solid var(--gold); background:rgba(255,255,255,0.12);}
+  main{padding:20px; max-width:1400px; margin:0 auto;}
+  .tab{display:none;}
+  .tab.active{display:block;}
+  .card{background:#fff; border-radius:8px; padding:18px; margin-bottom:18px; box-shadow:0 1px 3px rgba(0,0,0,0.08);}
+  .card h2{margin-top:0; font-size:16px; color:var(--navy); border-bottom:2px solid var(--lightgold); padding-bottom:8px;}
+  .form-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; align-items:end;}
+  label{display:block; font-size:11px; font-weight:bold; color:#555; margin-bottom:3px;}
+  input, select{width:100%; padding:7px; border:1px solid var(--border); border-radius:4px; font-size:13px;}
+  button.primary{background:var(--navy); color:#fff; border:none; padding:9px 18px; border-radius:4px;
+    cursor:pointer; font-weight:bold; font-size:13px;}
+  button.primary:hover{background:#16204a;}
+  button.danger{background:var(--red); color:#fff; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px;}
+  table{width:100%; border-collapse:collapse; font-size:12px; margin-top:14px;}
+  th, td{border:1px solid var(--border); padding:6px 8px; text-align:center;}
+  th{background:var(--navy); color:#fff; font-size:11px;}
+  tr:nth-child(even){background:#fafafa;}
+  td.left{text-align:left;}
+  .tot-row td{background:var(--lightgold); font-weight:bold;}
+  .badge{padding:3px 8px; border-radius:10px; font-size:11px; font-weight:bold; color:#fff;}
+  .badge.attesa{background:#E67E22;}
+  .badge.approvato{background:#2980B9;}
+  .badge.pagato{background:#27AE60;}
+  .badge.rifiutato{background:#C0392B;}
+  .badge.annullato{background:#7F8C8D;}
+  .kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px;}
+  .kpi{background:var(--lightblue); border-radius:8px; padding:14px;}
+  .kpi .label{font-size:11px; color:#444; font-weight:bold; text-transform:uppercase;}
+  .kpi .value{font-size:22px; font-weight:bold; color:var(--navy); margin-top:4px;}
+  .kpi.warn{background:#FCEFE3;}
+  .kpi.ok{background:#E8F8EF;}
+  .check-ok{color:var(--green); font-weight:bold;}
+  .check-bad{color:var(--red); font-weight:bold;}
+  .small{font-size:11px; color:#777;}
+  .actions{display:flex; gap:6px; justify-content:center;}
+  .pill{display:inline-block; background:var(--lightgold); border-radius:4px; padding:2px 6px; font-size:10px; margin-left:6px;}
+  /* Delta styles */
+  .delta-pos{color:#1E8449; font-weight:bold;}
+  .delta-neg{color:#922B21; font-weight:bold;}
+  .delta-zero{color:#888;}
+  tr.d-pos td{background:#f0faf4;}
+  tr.d-neg td{background:#fdf2f2;}
+  .chart-wrap{overflow-x:auto; margin-top:12px;}
+  .chart-wrap svg{display:block; min-width:600px; width:100%; height:auto;}
+  .kpi .sub{font-size:11px; color:#666; margin-top:2px;}
+  .kpi.delta-ok{background:#E8F8EF;}
+  .kpi.delta-warn{background:#FCEFE3;}
+  input.inline-num{width:110px; padding:3px 5px; font-size:12px; border:1px solid #aaa; border-radius:3px;}
+  input.inline-desc{width:100%; padding:3px 5px; font-size:11px; border:1px solid #aaa; border-radius:3px;}
+  .btn-save-row{background:#1E8449; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-size:11px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>BELLAVISTA INTERNATIONAL — Gestione Finanziaria</h1>
+  <p>COMO LAKE ESTATE SRL · Distribuzione Fondi FRS · Purchase Orders · Riconciliazione Bancaria</p>
+</header>
+
+<nav>
+  <button class="navbtn active" data-tab="dashboard">📊 Dashboard</button>
+  <button class="navbtn" data-tab="distribuzione">💰 Distribuzione Settimanale</button>
+  <button class="navbtn" data-tab="po">📋 Purchase Orders</button>
+  <button class="navbtn" data-tab="banca">🏦 Riconciliazione Banca</button>
+  <button class="navbtn" data-tab="parametri">⚙️ Parametri FRS</button>
+  <button class="navbtn" data-tab="categorie">🗂️ Categorie Spese</button>
+  <button class="navbtn" data-tab="delta">📈 Delta 2025/2026</button>
+</nav>
+
+<main>
+
+  <!-- DASHBOARD -->
+  <section id="dashboard" class="tab active">
+    <div class="card">
+      <h2>Esportazione dati</h2>
+      <button class="primary" onclick="exportAll()">⬇ Esporta tutti i dati in Excel (CSV)</button>
+      <p class="small" style="margin-top:8px;">Scarica 3 file CSV (Distribuzione, Purchase Orders, Riconciliazione Banca) che si aprono direttamente in Excel.</p>
+    </div>
+    <div class="card">
+      <h2>Riepilogo Fondi (totale storico inserito)</h2>
+      <div class="kpi-grid" id="dashFunds"></div>
+    </div>
+    <div class="card">
+      <h2>Purchase Orders</h2>
+      <div class="kpi-grid" id="dashPO"></div>
+    </div>
+    <div class="card">
+      <h2>Riconciliazione Bancaria</h2>
+      <div class="kpi-grid" id="dashBanca"></div>
+    </div>
+  </section>
+
+  <!-- DISTRIBUZIONE -->
+  <section id="distribuzione" class="tab">
+    <div class="card">
+      <h2>Inserisci ricavi della settimana</h2>
+      <div class="form-grid">
+        <div><label>Settimana (lunedì)</label><input type="date" id="d_date"></div>
+        <div><label>Ricavi (€)</label><input type="number" id="d_amount" min="0" step="0.01"></div>
+        <div><button class="primary" onclick="addWeek()">+ Aggiungi settimana</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Distribuzione Fondi</h2>
+      <button class="primary" onclick="exportDistribuzione()">⬇ Esporta in Excel (CSV)</button>
+      <table id="distTable">
+        <thead><tr>
+          <th>Settimana</th><th>Ricavi</th>
+          <th>Agenti 30%</th><th>Partner 5%</th><th>Dirigenza 5%</th><th>Marketing 10%</th><th>Tot.Diretti</th>
+          <th>Margine 50%</th><th>IVA 35%</th><th>Retrib. 24%</th><th>Dividendi 15%</th>
+          <th>HR</th><th>CEO</th><th>Sviluppo</th><th>Riserve</th><th>Rimborso</th><th>Formazione</th><th>Affitti</th><th>SO</th>
+          <th>Tot.Margine</th><th>CHECK</th><th></th>
+        </tr></thead>
+        <tbody id="distBody"></tbody>
+        <tfoot id="distFoot"></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <!-- PURCHASE ORDERS -->
+  <section id="po" class="tab">
+    <div class="card">
+      <h2>Nuovo Ordine di Acquisto</h2>
+      <div class="form-grid">
+        <div><label>Data richiesta</label><input type="date" id="po_date"></div>
+        <div><label>Fornitore</label><input type="text" id="po_supplier"></div>
+        <div><label>Descrizione</label><input type="text" id="po_desc"></div>
+        <div><label>Importo (€)</label><input type="number" id="po_amount" min="0" step="0.01"></div>
+        <div><label>Categoria / Fondo</label>
+          <select id="po_cat"></select>
+        </div>
+        <div><label>Richiedente</label>
+          <select id="po_req">
+            <option>AM - Angelina</option><option>SB - Silvia</option><option>PC - Patrizia</option>
+            <option>AB - Alena</option><option>YK - Yura</option><option>LP - Liubov</option><option>FilS - Filippo</option>
+          </select>
+        </div>
+        <div><label>Approvatore</label>
+          <select id="po_app">
+            <option>AM - Angelina</option><option>SB - Silvia</option><option>PC - Patrizia</option>
+            <option>AB - Alena</option><option>YK - Yura</option><option>LP - Liubov</option><option>FilS - Filippo</option>
+          </select>
+        </div>
+        <div><label>Status</label>
+          <select id="po_status">
+            <option value="attesa">In attesa</option><option value="approvato">Approvato</option>
+            <option value="pagato">Pagato</option><option value="rifiutato">Rifiutato</option>
+            <option value="annullato">Annullato</option>
+          </select>
+        </div>
+        <div><label>Note / N° Fattura</label><input type="text" id="po_note"></div>
+        <div><button class="primary" onclick="addPO()">+ Aggiungi ordine</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Registro Ordini</h2>
+      <button class="primary" onclick="exportPO()">⬇ Esporta in Excel (CSV)</button>
+      <table>
+        <thead><tr>
+          <th>#</th><th>Data</th><th>Fornitore</th><th>Descrizione</th><th>Importo</th><th>Categoria</th>
+          <th>Richiedente</th><th>Approvatore</th><th>Status</th><th>Note</th><th></th>
+        </tr></thead>
+        <tbody id="poBody"></tbody>
+        <tfoot id="poFoot"></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <!-- RICONCILIAZIONE BANCA -->
+  <section id="banca" class="tab">
+
+    <!-- IMPORT CSV -->
+    <div class="card">
+      <h2>📥 Importa estratto conto CSV</h2>
+      <p class="small">Carica il file CSV scaricato dalla tua banca. Il sistema rileva automaticamente le colonne e confronta con i movimenti già inseriti.</p>
+
+      <div class="form-grid" style="align-items:end; margin-bottom:12px;">
+        <div style="grid-column:span 2;">
+          <label>File CSV della banca</label>
+          <input type="file" id="csv_file" accept=".csv,.txt" onchange="onCSVLoad()" style="padding:5px;">
+        </div>
+        <div>
+          <label>Separatore</label>
+          <select id="csv_sep">
+            <option value=";">Punto e virgola ( ; )</option>
+            <option value=",">Virgola ( , )</option>
+            <option value="	">Tab</option>
+          </select>
+        </div>
+        <div>
+          <label>Prima riga = intestazione?</label>
+          <select id="csv_header"><option value="1">Sì</option><option value="0">No</option></select>
+        </div>
+        <div>
+          <label>Decimali nel CSV</label>
+          <select id="csv_dec">
+            <option value=",">Virgola  1.234,56  (IT)</option>
+            <option value=".">Punto  1,234.56  (EN)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- colonne mapping — appare dopo caricamento -->
+      <div id="csv_map_wrap" style="display:none; background:#f8f8f8; border:1px solid #ddd; border-radius:6px; padding:14px; margin-bottom:12px;">
+        <b style="font-size:13px; color:var(--navy);">Mappa le colonne del tuo CSV:</b>
+        <div class="form-grid" style="margin-top:10px;">
+          <div><label>Data</label><select id="map_date"></select></div>
+          <div><label>Descrizione / Causale</label><select id="map_desc"></select></div>
+          <div><label>Entrata / Accredito (€)</label><select id="map_in"></select></div>
+          <div><label>Uscita / Addebito (€)</label><select id="map_out"></select></div>
+          <div><label>Importo unico (±)</label><select id="map_amt"></select></div>
+          <div><label>Categoria / Sottocategoria</label><select id="map_cat"></select></div>
+          <div><button class="primary" onclick="previewCSV()">👁 Anteprima</button></div>
+        </div>
+        <p class="small" style="margin-top:6px;">Se la tua banca usa un solo campo Importo (positivo = entrata, negativo = uscita), selezionalo in «Importo unico» e lascia vuoti Entrata/Uscita.</p>
+      </div>
+
+      <!-- anteprima -->
+      <div id="csv_preview_wrap" style="display:none;">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+          <button class="primary" onclick="importCSVRows()">✅ Importa righe selezionate</button>
+          <label style="display:flex; align-items:center; gap:4px; font-size:12px; font-weight:normal;">
+            <input type="checkbox" id="csv_sel_all" onchange="toggleAllCSV(this.checked)"> Seleziona tutto
+          </label>
+          <span id="csv_count_msg" class="small"></span>
+        </div>
+        <div style="overflow-x:auto;">
+        <table id="csv_preview_table">
+          <thead><tr>
+            <th>✓</th><th>Stato</th><th>Data</th><th>Descrizione</th>
+            <th>Entrata</th><th>Uscita</th><th>Match esistente</th>
+          </tr></thead>
+          <tbody id="csv_preview_body"></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Saldo di riferimento</h2>
+      <div class="form-grid">
+        <div><label>Saldo estratto conto (€)</label><input type="number" id="b_saldoConto" step="0.01" oninput="renderBanca()"></div>
+        <div><label>Saldo libro contabile effettivo (€)</label><input type="number" id="b_saldoLibro" step="0.01" oninput="renderBanca()"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Nuovo movimento</h2>
+      <div class="form-grid">
+        <div><label>Data</label><input type="date" id="b_date"></div>
+        <div><label>Causale / Descrizione</label><input type="text" id="b_desc"></div>
+        <div><label>Entrata (€)</label><input type="number" id="b_in" min="0" step="0.01"></div>
+        <div><label>Uscita (€)</label><input type="number" id="b_out" min="0" step="0.01"></div>
+        <div><label>Categoria</label>
+          <select id="b_cat"></select>
+        </div>
+        <div><label>Riconciliato</label>
+          <select id="b_rec"><option value="N">No</option><option value="S">Sì</option><option value="P">Parziale</option></select>
+        </div>
+        <div><button class="primary" onclick="addBank()">+ Aggiungi movimento</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Movimenti</h2>
+      <button class="primary" onclick="exportBanca()">⬇ Esporta in Excel (CSV)</button>
+      <table>
+        <thead><tr><th>#</th><th>Data</th><th>Causale</th><th>Entrata</th><th>Uscita</th><th>Categoria</th><th>Riconc.</th><th></th></tr></thead>
+        <tbody id="bankBody"></tbody>
+        <tfoot id="bankFoot"></tfoot>
+      </table>
+      <p id="bancaCheck" style="margin-top:14px; font-size:14px;"></p>
+    </div>
+
+    <div class="card">
+      <h2>Vista Settimanale — Movimenti per Settimana FRS</h2>
+      <div style="overflow-x:auto;">
+        <table id="bankWeekTable">
+          <thead><tr>
+            <th>Sett.</th><th>Periodo 2026</th>
+            <th>Entrate</th><th>Uscite</th><th>Netto</th>
+            <th>Categorie principali</th><th>N. mov.</th>
+          </tr></thead>
+          <tbody id="bankWeekBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Vista per Categoria — Totali dal estratto conto</h2>
+      <div style="overflow-x:auto;">
+        <table id="bankCatTable">
+          <thead><tr><th>Categoria / Sottocategoria</th><th>Entrate</th><th>Uscite</th><th>Netto</th><th>N. mov.</th></tr></thead>
+          <tbody id="bankCatBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- CATEGORIE SPESE -->
+  <section id="categorie" class="tab">
+    <div class="card">
+      <h2>Importa categorie da file</h2>
+      <p class="small">Importa un file <b>CSV</b> (una categoria per riga, prima colonna = nome) oppure un file <b>.xlsx/.xls</b> (prima colonna del primo foglio).</p>
+      <div class="form-grid" style="align-items:end;">
+        <div style="grid-column:span 3;">
+          <label>Seleziona file CSV o Excel</label>
+          <input type="file" id="cat_file" accept=".csv,.xlsx,.xls,.txt" style="padding:5px;">
+        </div>
+        <div>
+          <label>Separatore CSV</label>
+          <select id="cat_sep"><option value=";">Punto e virgola (;)</option><option value=",">Virgola (,)</option><option value="	">Tab</option></select>
+        </div>
+        <div><label>Riga intestazione?</label>
+          <select id="cat_header"><option value="1">Sì — salta prima riga</option><option value="0">No — importa tutto</option></select>
+        </div>
+        <div><button class="primary" onclick="importCategorie()">⬆ Importa</button></div>
+      </div>
+      <p id="cat_import_msg" class="small" style="margin-top:8px;"></p>
+    </div>
+    <div class="card">
+      <h2>Aggiungi categoria manualmente</h2>
+      <div class="form-grid">
+        <div><label>Nome categoria</label><input type="text" id="cat_name" placeholder="es. Software / Consulenze / Spese Ufficio"></div>
+        <div><label>Tipo</label>
+          <select id="cat_type">
+            <option value="entrambi">Entrambi (PO e Banca)</option>
+            <option value="po">Solo Purchase Orders</option>
+            <option value="banca">Solo Riconciliazione Banca</option>
+          </select>
+        </div>
+        <div><button class="primary" onclick="addCategoria()">+ Aggiungi</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Elenco categorie</h2>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <button class="primary" onclick="exportCategorie()">⬇ Esporta CSV</button>
+        <button class="primary" style="background:#7F8C8D;" onclick="resetCategorie()">↺ Ripristina default</button>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th class="left" style="min-width:240px;">Nome categoria</th><th>Tipo</th><th>Usata in</th><th></th></tr></thead>
+        <tbody id="catBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- PARAMETRI -->
+  <section id="parametri" class="tab">
+    <div class="card">
+      <h2>Parametri FRS (modello di distribuzione fondi)</h2>
+      <p class="small">Tutte le percentuali sul margine sommano esattamente al 100% — modificarle con cautela: la somma deve restare 100%.</p>
+      <table>
+        <thead><tr><th>Fondo</th><th>% su Ricavi</th><th>% su Margine</th></tr></thead>
+        <tbody id="paramBody"></tbody>
+      </table>
+      <button class="primary" style="margin-top:14px;" onclick="saveParams()">Salva parametri</button>
+      <span id="paramCheckMsg" style="margin-left:14px;"></span>
+    </div>
+  </section>
+
+  <!-- DELTA 2025/2026 -->
+  <section id="delta" class="tab">
+    <div class="card">
+      <h2>KPI Delta 2025 → 2026</h2>
+      <div class="kpi-grid" id="deltaKpi"></div>
+    </div>
+    <div class="card">
+      <h2>Delta Progressivo — andamento annuale (€)</h2>
+      <div class="chart-wrap"><svg id="chartLine" viewBox="0 0 900 280"></svg></div>
+    </div>
+    <div class="card">
+      <h2>Delta Settimanale — incasso 2026 vs spesa 2025 (€)</h2>
+      <div class="chart-wrap"><svg id="chartBar" viewBox="0 0 900 220"></svg></div>
+    </div>
+    <div class="card">
+      <h2>Riepilogo per mese — Totali 2025 vs 2026</h2>
+      <div class="chart-wrap"><svg id="chartMonth" viewBox="0 0 900 220"></svg></div>
+    </div>
+    <div class="card">
+      <h2>Tabella completa 52 settimane</h2>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <button class="primary" onclick="exportDelta()">⬇ Esporta Delta CSV</button>
+        <button class="primary" style="background:#7F8C8D;" onclick="resetDeltaEdits()">↺ Annulla modifiche</button>
+      </div>
+      <p class="small">Le celle <b>Importo 2026</b> e <b>Descrizione</b> sono modificabili. Clicca <b>Salva</b> su ogni riga per confermare.</p>
+      <div style="overflow-x:auto;">
+      <table id="deltaTable">
+        <thead><tr>
+          <th>#</th>
+          <th>Periodo 2025</th><th>Importo 2025</th>
+          <th>Periodo 2026</th><th>Importo 2026</th>
+          <th>Delta sett.</th><th>Delta progress.</th>
+          <th style="min-width:220px;">Descrizione 2026</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="deltaBody"></tbody>
+        <tfoot id="deltaFoot"></tfoot>
+      </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+// ---------- STORAGE ----------
+const DEFAULT_PARAMS = {
+  agenti:0.30, partner:0.05, dirigenza:0.05, marketing:0.10,
+  iva:0.35, retrib:0.24, dividendi:0.15,
+  hr:0.02619847328244275, ceo:0.03969465648854962, sviluppo:0.03969465648854962,
+  riserve:0.02381679389312977, rimborso:0.03969465648854962,
+  formazione:0.01587786259541985, affitti:0.0317557251908397, so:0.04326717557251909
+};
+
+const DEFAULT_CATEGORIE = [
+  // Fondi FRS
+  {name:'Fondo Agenti', type:'entrambi'},
+  {name:'Fondo Partner', type:'entrambi'},
+  {name:'Fondo Dirigenza', type:'entrambi'},
+  {name:'Fondo Marketing & IT', type:'entrambi'},
+  {name:'Fondo IVA+Imposte', type:'entrambi'},
+  {name:'Fondo Retribuzioni', type:'entrambi'},
+  {name:'Fondo Dividendi', type:'entrambi'},
+  {name:'Fondo CEO', type:'entrambi'},
+  {name:'Fondo Sviluppo', type:'entrambi'},
+  {name:'Fondo Riserve', type:'entrambi'},
+  {name:'Fondo Rimborso', type:'entrambi'},
+  {name:'Fondo Formazione', type:'entrambi'},
+  {name:'Fondo Affitti', type:'entrambi'},
+  {name:'Fondo SO', type:'entrambi'},
+  // Categorie da Delta 2025/2026
+  {name:'Fattura Cliente', type:'entrambi'},
+  {name:'Fattura Fornitore', type:'po'},
+  {name:'Storno / Rettifica', type:'entrambi'},
+  {name:'Saldo Commerciale', type:'entrambi'},
+  {name:'Onorario Notaio', type:'po'},
+  {name:'Onorario Professionista', type:'po'},
+  {name:'Investimento Immobiliare', type:'entrambi'},
+  {name:'Rimborso Cliente', type:'banca'},
+  {name:'Mediazione Immobiliare', type:'entrambi'},
+  // Spese operative
+  {name:'Commissioni', type:'banca'},
+  {name:'Finanziamento IC', type:'banca'},
+  {name:'Stipendi', type:'banca'},
+  {name:'Tasse', type:'banca'},
+  {name:'Software', type:'entrambi'},
+  {name:'Marketing', type:'entrambi'},
+  {name:'Spese Ufficio', type:'entrambi'},
+  {name:'Formazione Esterna', type:'entrambi'},
+  {name:'Consulenze', type:'entrambi'},
+  {name:'Altro', type:'entrambi'}
+];
+
+function loadData(){
+  const raw = localStorage.getItem('bellavista_data');
+  if(raw){
+    const d = JSON.parse(raw);
+    if(!d.categorie) d.categorie = DEFAULT_CATEGORIE.map(c=>({...c}));
+    return d;
+  }
+  return { weeks:[], po:[], bank:[], params: DEFAULT_PARAMS, bankBalances:{conto:0, libro:0}, categorie: DEFAULT_CATEGORIE.map(c=>({...c})) };
+}
+let DATA = loadData();
+function saveData(){ localStorage.setItem('bellavista_data', JSON.stringify(DATA)); }
+
+// ---------- NAV ----------
+document.querySelectorAll('.navbtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.navbtn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='dashboard') renderDashboard();
+    if(btn.dataset.tab==='categorie') renderCategorie();
+    if(btn.dataset.tab==='delta') renderDeltaDashboard();
+  });
+});
+
+const eur = n => '€ ' + Number(n).toLocaleString('it-IT', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+// ---------- DISTRIBUZIONE ----------
+function calcWeek(amount){
+  const p = DATA.params;
+  const agenti = amount*p.agenti, partner = amount*p.partner, dirigenza = amount*p.dirigenza, marketing = amount*p.marketing;
+  const totDiretti = agenti+partner+dirigenza+marketing;
+  const margine = amount*0.5;
+  const iva = margine*p.iva, retrib = margine*p.retrib, dividendi = margine*p.dividendi;
+  const hr = margine*p.hr, ceo = margine*p.ceo, sviluppo = margine*p.sviluppo, riserve = margine*p.riserve,
+        rimborso = margine*p.rimborso, formazione = margine*p.formazione, affitti = margine*p.affitti, so = margine*p.so;
+  const totMargine = iva+retrib+dividendi+hr+ceo+sviluppo+riserve+rimborso+formazione+affitti+so;
+  const check = amount - totDiretti - totMargine;
+  return {agenti,partner,dirigenza,marketing,totDiretti,margine,iva,retrib,dividendi,hr,ceo,sviluppo,riserve,rimborso,formazione,affitti,so,totMargine,check};
+}
+
+function addWeek(){
+  const date = document.getElementById('d_date').value;
+  const amount = parseFloat(document.getElementById('d_amount').value);
+  if(!date || isNaN(amount)){ alert('Inserisci data e importo validi.'); return; }
+  DATA.weeks.push({date, amount});
+  DATA.weeks.sort((a,b)=> a.date.localeCompare(b.date));
+  saveData();
+  document.getElementById('d_amount').value='';
+  renderDistribuzione();
+}
+function deleteWeek(idx){ DATA.weeks.splice(idx,1); saveData(); renderDistribuzione(); }
+
+function renderDistribuzione(){
+  const body = document.getElementById('distBody');
+  body.innerHTML='';
+  let totals = {amount:0,agenti:0,partner:0,dirigenza:0,marketing:0,totDiretti:0,margine:0,iva:0,retrib:0,dividendi:0,
+                hr:0,ceo:0,sviluppo:0,riserve:0,rimborso:0,formazione:0,affitti:0,so:0,totMargine:0,check:0};
+  DATA.weeks.forEach((w, idx)=>{
+    const c = calcWeek(w.amount);
+    const tr = document.createElement('tr');
+    const checkClass = Math.abs(c.check) < 0.01 ? 'check-ok' : 'check-bad';
+    tr.innerHTML = `<td class="left">${w.date}</td><td>${eur(w.amount)}</td>
+      <td>${eur(c.agenti)}</td><td>${eur(c.partner)}</td><td>${eur(c.dirigenza)}</td><td>${eur(c.marketing)}</td><td>${eur(c.totDiretti)}</td>
+      <td>${eur(c.margine)}</td><td>${eur(c.iva)}</td><td>${eur(c.retrib)}</td><td>${eur(c.dividendi)}</td>
+      <td>${eur(c.hr)}</td><td>${eur(c.ceo)}</td><td>${eur(c.sviluppo)}</td><td>${eur(c.riserve)}</td><td>${eur(c.rimborso)}</td><td>${eur(c.formazione)}</td><td>${eur(c.affitti)}</td><td>${eur(c.so)}</td>
+      <td>${eur(c.totMargine)}</td><td class="${checkClass}">${eur(c.check)}</td>
+      <td><button class="danger" onclick="deleteWeek(${idx})">✕</button></td>`;
+    body.appendChild(tr);
+    totals.amount += w.amount;
+    for(const k in c){ if(k in totals) totals[k]+=c[k]; }
+  });
+  const foot = document.getElementById('distFoot');
+  const checkClass = Math.abs(totals.check) < 0.01 ? 'check-ok' : 'check-bad';
+  foot.innerHTML = `<tr class="tot-row"><td class="left">TOTALE</td><td>${eur(totals.amount)}</td>
+    <td>${eur(totals.agenti)}</td><td>${eur(totals.partner)}</td><td>${eur(totals.dirigenza)}</td><td>${eur(totals.marketing)}</td><td>${eur(totals.totDiretti)}</td>
+    <td>${eur(totals.margine)}</td><td>${eur(totals.iva)}</td><td>${eur(totals.retrib)}</td><td>${eur(totals.dividendi)}</td>
+    <td>${eur(totals.hr)}</td><td>${eur(totals.ceo)}</td><td>${eur(totals.sviluppo)}</td><td>${eur(totals.riserve)}</td><td>${eur(totals.rimborso)}</td><td>${eur(totals.formazione)}</td><td>${eur(totals.affitti)}</td><td>${eur(totals.so)}</td>
+    <td>${eur(totals.totMargine)}</td><td class="${checkClass}">${eur(totals.check)}</td><td></td></tr>`;
+}
+
+// ---------- PURCHASE ORDERS ----------
+const statusLabel = {attesa:'In attesa', approvato:'Approvato', pagato:'Pagato', rifiutato:'Rifiutato', annullato:'Annullato'};
+
+function addPO(){
+  const supplier = document.getElementById('po_supplier').value.trim();
+  const amount = parseFloat(document.getElementById('po_amount').value);
+  if(!supplier || isNaN(amount)){ alert('Inserisci fornitore e importo validi.'); return; }
+  DATA.po.push({
+    date: document.getElementById('po_date').value,
+    supplier, desc: document.getElementById('po_desc').value,
+    amount, cat: document.getElementById('po_cat').value,
+    req: document.getElementById('po_req').value, app: document.getElementById('po_app').value,
+    status: document.getElementById('po_status').value, note: document.getElementById('po_note').value
+  });
+  saveData();
+  ['po_supplier','po_desc','po_amount','po_note'].forEach(id=>document.getElementById(id).value='');
+  renderPO();
+}
+function deletePO(idx){ DATA.po.splice(idx,1); saveData(); renderPO(); }
+function setPOStatus(idx, status){ DATA.po[idx].status = status; saveData(); renderPO(); }
+
+function renderPO(){
+  const body = document.getElementById('poBody');
+  body.innerHTML='';
+  let totApprovedPaid=0, totPending=0;
+  DATA.po.forEach((o, idx)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${idx+1}</td><td>${o.date||''}</td><td class="left">${o.supplier}</td><td class="left">${o.desc||''}</td>
+      <td>${eur(o.amount)}</td><td>${o.cat}</td><td>${o.req}</td><td>${o.app}</td>
+      <td><select onchange="setPOStatus(${idx}, this.value)">
+            ${Object.entries(statusLabel).map(([k,l])=>`<option value="${k}" ${o.status===k?'selected':''}>${l}</option>`).join('')}
+          </select></td>
+      <td class="left">${o.note||''}</td>
+      <td><button class="danger" onclick="deletePO(${idx})">✕</button></td>`;
+    body.appendChild(tr);
+    if(o.status==='approvato' || o.status==='pagato') totApprovedPaid += o.amount;
+    if(o.status==='attesa') totPending += o.amount;
+  });
+  document.getElementById('poFoot').innerHTML =
+    `<tr class="tot-row"><td colspan="4" class="left">TOTALE Approvati+Pagati / In attesa</td>
+     <td colspan="6">${eur(totApprovedPaid)} &nbsp;/&nbsp; ${eur(totPending)}</td><td></td></tr>`;
+}
+
+// ---------- RICONCILIAZIONE BANCA ----------
+function addBank(){
+  const desc = document.getElementById('b_desc').value.trim();
+  const din = parseFloat(document.getElementById('b_in').value) || 0;
+  const dout = parseFloat(document.getElementById('b_out').value) || 0;
+  if(!desc || (din===0 && dout===0)){ alert('Inserisci causale e un importo (entrata o uscita).'); return; }
+  DATA.bank.push({
+    date: document.getElementById('b_date').value, desc, in: din, out: dout,
+    cat: document.getElementById('b_cat').value, rec: document.getElementById('b_rec').value
+  });
+  saveData();
+  ['b_desc','b_in','b_out'].forEach(id=>document.getElementById(id).value='');
+  renderBanca();
+}
+function deleteBank(idx){ DATA.bank.splice(idx,1); saveData(); renderBanca(); }
+function setBankRec(idx, val){ DATA.bank[idx].rec = val; saveData(); renderBanca(); }
+
+function renderBanca(){
+  const body = document.getElementById('bankBody');
+  body.innerHTML='';
+  let totIn=0, totOut=0, nonRec=0;
+  DATA.bank.forEach((m, idx)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${idx+1}</td><td>${m.date||''}</td><td class="left">${m.desc}</td>
+      <td>${m.in? eur(m.in):''}</td><td>${m.out? eur(m.out):''}</td><td>${m.cat}</td>
+      <td><select onchange="setBankRec(${idx}, this.value)">
+            <option value="N" ${m.rec==='N'?'selected':''}>No</option>
+            <option value="S" ${m.rec==='S'?'selected':''}>Sì</option>
+            <option value="P" ${m.rec==='P'?'selected':''}>Parziale</option>
+          </select></td>
+      <td><button class="danger" onclick="deleteBank(${idx})">✕</button></td>`;
+    body.appendChild(tr);
+    totIn += m.in; totOut += m.out;
+    if(m.rec==='N') nonRec += (m.in - m.out);
+  });
+  document.getElementById('bankFoot').innerHTML =
+    `<tr class="tot-row"><td colspan="3" class="left">TOTALI</td><td>${eur(totIn)}</td><td>${eur(totOut)}</td>
+     <td colspan="3">Non riconciliato: ${eur(nonRec)}</td></tr>`;
+
+  const saldoConto = parseFloat(document.getElementById('b_saldoConto').value)||0;
+  const saldoLibro = parseFloat(document.getElementById('b_saldoLibro').value)||0;
+  const saldoCalcolato = saldoConto - nonRec;
+  const diff = saldoCalcolato - saldoLibro;
+  const el = document.getElementById('bancaCheck');
+  const cls = Math.abs(diff) < 0.01 ? 'check-ok' : 'check-bad';
+  el.innerHTML = `Saldo libro calcolato: <b>${eur(saldoCalcolato)}</b> &nbsp;|&nbsp; Differenza di riconciliazione: <span class="${cls}">${eur(diff)}</span>`;
+
+  renderBankWeekly();
+  renderBankCategorie();
+}
+
+// ---------- PARAMETRI ----------
+const paramLabels = [
+  ['agenti','Fondo Agenti','ricavi'], ['partner','Fondo Partner','ricavi'],
+  ['dirigenza','Fondo Dirigenza','ricavi'], ['marketing','Fondo Marketing & IT','ricavi'],
+  ['iva','Fondo IVA + Imposte','margine'], ['retrib','Fondo Retribuzioni + Tasse','margine'],
+  ['dividendi','Fondo Dividendi','margine'], ['hr','Fondo Obiettivi HR','margine'],
+  ['ceo','Fondo Emolumento CEO','margine'], ['sviluppo','Fondo Sviluppo','margine'],
+  ['riserve','Fondo Riserve','margine'], ['rimborso','Fondo Rimborso Investimenti','margine'],
+  ['formazione','Fondo Formazione','margine'], ['affitti','Fondo Affitti','margine'], ['so','Fondo Spese Operative','margine']
+];
+
+function renderParams(){
+  const body = document.getElementById('paramBody');
+  body.innerHTML='';
+  paramLabels.forEach(([key,label,base])=>{
+    const tr = document.createElement('tr');
+    const val = (DATA.params[key]*100).toFixed(4);
+    tr.innerHTML = `<td class="left">${label}</td>
+      <td>${base==='ricavi'?`<input type="number" step="0.0001" id="p_${key}" value="${val}">%`:''}</td>
+      <td>${base==='margine'?`<input type="number" step="0.0001" id="p_${key}" value="${val}">%`:''}</td>`;
+    body.appendChild(tr);
+  });
+  checkParamSum();
+}
+function checkParamSum(){
+  const marginKeys = paramLabels.filter(p=>p[2]==='margine').map(p=>p[0]);
+  let sum=0;
+  marginKeys.forEach(k=>{ const v=parseFloat(document.getElementById('p_'+k)?.value); if(!isNaN(v)) sum+=v; });
+  const msg = document.getElementById('paramCheckMsg');
+  const ok = Math.abs(sum-100) < 0.01;
+  msg.innerHTML = `Somma % su margine: <b class="${ok?'check-ok':'check-bad'}">${sum.toFixed(4)}%</b> ${ok?'✓ corretto':'⚠ deve essere 100%'}`;
+}
+function saveParams(){
+  paramLabels.forEach(([key])=>{
+    const el = document.getElementById('p_'+key);
+    if(el) DATA.params[key] = parseFloat(el.value)/100;
+  });
+  saveData();
+  checkParamSum();
+  renderDistribuzione();
+  alert('Parametri salvati.');
+}
+document.addEventListener('input', e=>{ if(e.target.id && e.target.id.startsWith('p_')) checkParamSum(); });
+
+// ---------- DASHBOARD ----------
+function renderDashboard(){
+  const fundsEl = document.getElementById('dashFunds');
+  let totals = {amount:0,totDiretti:0,margine:0,totMargine:0};
+  DATA.weeks.forEach(w=>{ const c = calcWeek(w.amount); totals.amount+=w.amount; totals.totDiretti+=c.totDiretti; totals.margine+=c.margine; totals.totMargine+=c.totMargine; });
+  fundsEl.innerHTML = `
+    <div class="kpi"><div class="label">Ricavi Totali</div><div class="value">${eur(totals.amount)}</div></div>
+    <div class="kpi"><div class="label">Tot. Fondi Diretti</div><div class="value">${eur(totals.totDiretti)}</div></div>
+    <div class="kpi"><div class="label">Margine</div><div class="value">${eur(totals.margine)}</div></div>
+    <div class="kpi"><div class="label">Tot. Fondi Margine</div><div class="value">${eur(totals.totMargine)}</div></div>
+    <div class="kpi"><div class="label">Settimane registrate</div><div class="value">${DATA.weeks.length}</div></div>`;
+
+  const poEl = document.getElementById('dashPO');
+  const cnt = {attesa:0,approvato:0,pagato:0,rifiutato:0};
+  const amt = {attesa:0,approvato:0,pagato:0,rifiutato:0};
+  DATA.po.forEach(o=>{ if(cnt[o.status]!==undefined){cnt[o.status]++; amt[o.status]+=o.amount;} });
+  poEl.innerHTML = `
+    <div class="kpi warn"><div class="label">In attesa (${cnt.attesa})</div><div class="value">${eur(amt.attesa)}</div></div>
+    <div class="kpi ok"><div class="label">Approvati (${cnt.approvato})</div><div class="value">${eur(amt.approvato)}</div></div>
+    <div class="kpi ok"><div class="label">Pagati (${cnt.pagato})</div><div class="value">${eur(amt.pagato)}</div></div>
+    <div class="kpi"><div class="label">Rifiutati (${cnt.rifiutato})</div><div class="value">${eur(amt.rifiutato)}</div></div>`;
+
+  const bancaEl = document.getElementById('dashBanca');
+  let totIn=0, totOut=0, nonRec=0;
+  DATA.bank.forEach(m=>{ totIn+=m.in; totOut+=m.out; if(m.rec==='N') nonRec += (m.in-m.out); });
+  bancaEl.innerHTML = `
+    <div class="kpi"><div class="label">Tot. Entrate</div><div class="value">${eur(totIn)}</div></div>
+    <div class="kpi"><div class="label">Tot. Uscite</div><div class="value">${eur(totOut)}</div></div>
+    <div class="kpi ${Math.abs(nonRec)<0.01?'ok':'warn'}"><div class="label">Non Riconciliato</div><div class="value">${eur(nonRec)}</div></div>`;
+}
+
+// ---------- EXPORT TO EXCEL (CSV) ----------
+function downloadCSV(filename, rows){
+  // semicolon-separated for Excel (IT locale), BOM for correct accented chars / €
+  const csv = rows.map(r => r.map(cell=>{
+    let v = (cell===null||cell===undefined) ? '' : String(cell);
+    v = v.replace(/"/g,'""');
+    if(v.includes(';') || v.includes('"') || v.includes('\n')) v = `"${v}"`;
+    return v;
+  }).join(';')).join('\r\n');
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+const numIT = n => Number(n).toFixed(2).replace('.', ',');
+
+function exportDistribuzione(){
+  const rows = [['Settimana','Ricavi','Fondo Agenti','Fondo Partner','Fondo Dirigenza','Fondo Marketing',
+    'Tot.Diretti','Margine','Fondo IVA','Fondo Retrib.','Fondo Dividendi','Fondo HR','Fondo CEO','Fondo Sviluppo',
+    'Fondo Riserve','Fondo Rimborso','Fondo Formazione','Fondo Affitti','Fondo SO','Tot.Margine','CHECK']];
+  DATA.weeks.forEach(w=>{
+    const c = calcWeek(w.amount);
+    rows.push([w.date, numIT(w.amount), numIT(c.agenti), numIT(c.partner), numIT(c.dirigenza), numIT(c.marketing),
+      numIT(c.totDiretti), numIT(c.margine), numIT(c.iva), numIT(c.retrib), numIT(c.dividendi), numIT(c.hr), numIT(c.ceo),
+      numIT(c.sviluppo), numIT(c.riserve), numIT(c.rimborso), numIT(c.formazione), numIT(c.affitti), numIT(c.so),
+      numIT(c.totMargine), numIT(c.check)]);
+  });
+  downloadCSV('Bellavista_Distribuzione_Settimanale.csv', rows);
+}
+
+function exportPO(){
+  const rows = [['#','Data','Fornitore','Descrizione','Importo','Categoria','Richiedente','Approvatore','Status','Note']];
+  DATA.po.forEach((o,idx)=>{
+    rows.push([idx+1, o.date||'', o.supplier, o.desc||'', numIT(o.amount), o.cat, o.req, o.app, statusLabel[o.status]||o.status, o.note||'']);
+  });
+  downloadCSV('Bellavista_Purchase_Orders.csv', rows);
+}
+
+function exportBanca(){
+  const rows = [['#','Data','Causale','Entrata','Uscita','Categoria','Riconciliato']];
+  DATA.bank.forEach((m,idx)=>{
+    rows.push([idx+1, m.date||'', m.desc, numIT(m.in), numIT(m.out), m.cat, m.rec]);
+  });
+  rows.push([]);
+  rows.push(['Saldo estratto conto', numIT(parseFloat(document.getElementById('b_saldoConto').value)||0)]);
+  rows.push(['Saldo libro contabile effettivo', numIT(parseFloat(document.getElementById('b_saldoLibro').value)||0)]);
+  downloadCSV('Bellavista_Riconciliazione_Banca.csv', rows);
+}
+
+function exportAll(){
+  exportDistribuzione();
+  setTimeout(exportPO, 300);
+  setTimeout(exportBanca, 600);
+  setTimeout(exportCategorie, 900);
+}
+
+// ---------- CATEGORIE SPESE ----------
+const typeLabel = {entrambi:'PO + Banca', po:'Solo PO', banca:'Solo Banca'};
+
+function getCatOptions(scope){ // scope: 'po' | 'banca'
+  return DATA.categorie
+    .filter(c => c.type === 'entrambi' || c.type === scope)
+    .map(c => `<option>${c.name}</option>`).join('');
+}
+
+function refreshDropdowns(){
+  const poCat = document.getElementById('po_cat');
+  const bCat  = document.getElementById('b_cat');
+  if(poCat){ const cur = poCat.value; poCat.innerHTML = getCatOptions('po'); if([...poCat.options].some(o=>o.value===cur)) poCat.value=cur; }
+  if(bCat){  const cur = bCat.value;  bCat.innerHTML  = getCatOptions('banca'); if([...bCat.options].some(o=>o.value===cur))  bCat.value=cur; }
+}
+
+function renderCategorie(){
+  const body = document.getElementById('catBody');
+  if(!body) return;
+  body.innerHTML = '';
+  DATA.categorie.forEach((c, idx)=>{
+    const poCount   = DATA.po.filter(o => o.cat === c.name).length;
+    const bankCount = DATA.bank.filter(m => m.cat === c.name).length;
+    const usedIn = [poCount>0?`PO:${poCount}`:'', bankCount>0?`Banca:${bankCount}`:''].filter(Boolean).join(' ');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${idx+1}</td><td class="left">${c.name}</td>
+      <td><select onchange="setCatType(${idx},this.value)">
+        <option value="entrambi" ${c.type==='entrambi'?'selected':''}>PO + Banca</option>
+        <option value="po" ${c.type==='po'?'selected':''}>Solo PO</option>
+        <option value="banca" ${c.type==='banca'?'selected':''}>Solo Banca</option>
+      </select></td>
+      <td class="small">${usedIn||'—'}</td>
+      <td><button class="danger" onclick="deleteCategoria(${idx})">✕</button></td>`;
+    body.appendChild(tr);
+  });
+  refreshDropdowns();
+}
+
+function setCatType(idx, val){ DATA.categorie[idx].type = val; saveData(); renderCategorie(); }
+
+function addCategoria(){
+  const name = document.getElementById('cat_name').value.trim();
+  if(!name){ alert('Inserisci il nome della categoria.'); return; }
+  if(DATA.categorie.some(c=>c.name.toLowerCase()===name.toLowerCase())){ alert('Categoria già presente.'); return; }
+  const type = document.getElementById('cat_type').value;
+  DATA.categorie.push({name, type});
+  saveData();
+  document.getElementById('cat_name').value = '';
+  renderCategorie();
+}
+
+function deleteCategoria(idx){
+  const name = DATA.categorie[idx].name;
+  const inUse = DATA.po.some(o=>o.cat===name) || DATA.bank.some(m=>m.cat===name);
+  if(inUse && !confirm(`La categoria "${name}" è usata in alcuni record esistenti. Rimuoverla comunque?`)) return;
+  DATA.categorie.splice(idx,1);
+  saveData();
+  renderCategorie();
+}
+
+function resetCategorie(){
+  if(!confirm('Ripristinare le categorie predefinite? Le categorie personalizzate saranno rimosse.')) return;
+  DATA.categorie = DEFAULT_CATEGORIE.map(c=>({...c}));
+  saveData();
+  renderCategorie();
+}
+
+function exportCategorie(){
+  const rows = [['Nome categoria','Tipo']];
+  DATA.categorie.forEach(c => rows.push([c.name, typeLabel[c.type]||c.type]));
+  downloadCSV('Bellavista_Categorie_Spese.csv', rows);
+}
+
+function importCategorie(){
+  const file = document.getElementById('cat_file').files[0];
+  if(!file){ alert('Seleziona un file prima.'); return; }
+  const ext = file.name.split('.').pop().toLowerCase();
+  const msg = document.getElementById('cat_import_msg');
+  if(ext === 'xlsx' || ext === 'xls'){
+    msg.innerHTML = '⚠ Per file Excel (.xlsx), salva prima come CSV da Excel (File → Salva con nome → CSV), poi importa il CSV qui.';
+    return;
+  }
+  const sep = document.getElementById('cat_sep').value;
+  const skipHeader = document.getElementById('cat_header').value === '1';
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const text = e.target.result.replace(/^﻿/,''); // strip BOM
+    const lines = text.split(/\r?\n/).filter(l=>l.trim()!=='');
+    const start = skipHeader ? 1 : 0;
+    let added = 0, skipped = 0;
+    for(let i = start; i < lines.length; i++){
+      const name = lines[i].split(sep)[0].replace(/^"|"$/g,'').trim();
+      if(!name) continue;
+      if(DATA.categorie.some(c=>c.name.toLowerCase()===name.toLowerCase())){ skipped++; continue; }
+      DATA.categorie.push({name, type:'entrambi'});
+      added++;
+    }
+    saveData();
+    renderCategorie();
+    msg.innerHTML = `✅ Importate <b>${added}</b> categorie, <b>${skipped}</b> già presenti (saltate).`;
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+// ---------- IMPORT CSV BANCA ----------
+let CSV_ROWS = []; // parsed rows from CSV
+let CSV_HEADERS = [];
+
+function onCSVLoad(){
+  const file = document.getElementById('csv_file').files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result.replace(/^﻿/,''); // strip BOM
+    const hasH = document.getElementById('csv_header').value === '1';
+    const lines = text.split(/\r?\n/).filter(l => l.trim() !== '');
+    if(lines.length === 0){ alert('File vuoto.'); return; }
+
+    // auto-detect Banco BPM format BEFORE parsing
+    const headersLower = lines[0].toLowerCase();
+    if(headersLower.includes('data contabile') || headersLower.includes('ragione sociale')){
+      document.getElementById('csv_sep').value = ',';
+      document.getElementById('csv_dec').value = ',';
+    }
+
+    // parse all lines using (possibly just updated) separator
+    const parseRow = line => {
+      const useSep = document.getElementById('csv_sep').value;
+      const cells = []; let cur = '', inQ = false;
+      for(let i=0; i<line.length; i++){
+        const c = line[i];
+        if(c==='"'){ inQ=!inQ; continue; }
+        if(c===useSep && !inQ){ cells.push(cur.trim()); cur=''; }
+        else cur += c;
+      }
+      cells.push(cur.trim());
+      return cells;
+    };
+
+    CSV_HEADERS = hasH ? parseRow(lines[0]) : lines[0].split(document.getElementById('csv_sep').value).map((_,i)=>`Colonna ${i+1}`);
+    const dataStart = hasH ? 1 : 0;
+    CSV_ROWS = lines.slice(dataStart).map(parseRow).filter(r => r.some(c=>c!==''));
+
+    // populate column selectors
+    const none = '<option value="">— nessuna —</option>';
+    const opts = CSV_HEADERS.map((h,i)=>`<option value="${i}">${h}</option>`).join('');
+    ['map_date','map_desc','map_in','map_out','map_amt','map_cat'].forEach(id=>{
+      document.getElementById(id).innerHTML = none + opts;
+    });
+
+    // auto-detect columns by header name
+    const autoMap = {
+      map_date: ['data contabile','data op','data operazione','data','date','dt'],
+      map_desc: ['descrizione','causale','desc','movim','motivo','dettaglio','note','pagamento'],
+      map_in:   ['accredito','entrata','avere','credito','accr','in','accrediti'],
+      map_out:  ['addebito','uscita','dare','debito','addebit','out','addebiti'],
+      map_amt:  ['importo','amount','saldo mov','valore','mov','imponibile'],
+      map_cat:  ['categoria/sottocategoria','categoria','sottocategoria','category','tipo']
+    };
+    Object.entries(autoMap).forEach(([selId, keywords])=>{
+      const sel = document.getElementById(selId);
+      const idx = CSV_HEADERS.findIndex(h =>
+        keywords.some(k => h.toLowerCase().includes(k))
+      );
+      if(idx >= 0) sel.value = String(idx);
+    });
+
+    document.getElementById('csv_map_wrap').style.display = 'block';
+    document.getElementById('csv_preview_wrap').style.display = 'none';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function parseAmt(str, decChar){
+  if(!str || str.trim()==='') return null;
+  let s = str.trim().replace(/[€$£\s]/g,'');
+  if(decChar === ','){
+    s = s.replace(/\./g,'').replace(',','.');   // 1.234,56 → 1234.56
+  } else {
+    s = s.replace(/,/g,'');                      // 1,234.56 → 1234.56
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+
+function parseDate(str){
+  if(!str) return '';
+  str = str.trim();
+  // try DD/MM/YYYY or DD-MM-YYYY
+  let m = str.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // try YYYY-MM-DD (already ISO)
+  m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+  // try MM/DD/YYYY
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m) return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  return str;
+}
+
+function previewCSV(){
+  const dec    = document.getElementById('csv_dec').value;
+  const iDate  = document.getElementById('map_date').value;
+  const iDesc  = document.getElementById('map_desc').value;
+  const iIn    = document.getElementById('map_in').value;
+  const iOut   = document.getElementById('map_out').value;
+  const iAmt   = document.getElementById('map_amt').value;
+  const iCat   = document.getElementById('map_cat').value;
+
+  if(iDate==='' || iDesc===''){
+    alert('Seleziona almeno le colonne Data e Descrizione.');
+    return;
+  }
+
+  const parsed = CSV_ROWS.map(row => {
+    const date = parseDate(row[iDate]);
+    const desc = row[iDesc] || '';
+    const cat  = iCat !== '' ? (row[iCat] || '').trim() : '';
+    let ein=0, eout=0;
+    if(iAmt !== ''){
+      const v = parseAmt(row[iAmt], dec) || 0;
+      if(v >= 0) ein = v; else eout = Math.abs(v);
+    } else {
+      ein  = iIn  !== '' ? (parseAmt(row[iIn],  dec) || 0) : 0;
+      eout = iOut !== '' ? (parseAmt(row[iOut], dec) || 0) : 0;
+    }
+    return {date, desc, cat, in: ein, out: eout, rawRow: row};
+  }).filter(r => r.desc || r.in || r.out);
+
+  // match against existing DATA.bank
+  const body = document.getElementById('csv_preview_body');
+  body.innerHTML = '';
+  let newCount=0, dupCount=0;
+
+  parsed.forEach((r, idx) => {
+    const match = findBankMatch(r);
+    const isDup = match >= 0;
+    if(!isDup) newCount++; else dupCount++;
+
+    const statusBadge = isDup
+      ? `<span class="badge" style="background:#E67E22;">Duplicato</span>`
+      : `<span class="badge" style="background:#27AE60;">Nuovo</span>`;
+    const matchTxt = isDup
+      ? `#${match+1} ${DATA.bank[match].date} ${eur(DATA.bank[match].in||DATA.bank[match].out)}`
+      : '—';
+
+    const tr = document.createElement('tr');
+    tr.style.background = isDup ? '#fffbf0' : '';
+    tr.innerHTML = `
+      <td><input type="checkbox" class="csv-row-cb" data-idx="${idx}" ${isDup?'':'checked'}></td>
+      <td>${statusBadge}</td>
+      <td class="small">${r.date}</td>
+      <td class="left" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.desc}">${r.desc}</td>
+      <td class="delta-pos">${r.in  ? eur(r.in)  : ''}</td>
+      <td class="delta-neg">${r.out ? eur(r.out) : ''}</td>
+      <td class="small left">${matchTxt}</td>`;
+    body.appendChild(tr);
+  });
+
+  // store parsed for import
+  body._parsed = parsed;
+  document.getElementById('csv_preview_wrap').style.display = 'block';
+  document.getElementById('csv_count_msg').textContent =
+    `${parsed.length} righe totali · ${newCount} nuove · ${dupCount} possibili duplicati`;
+
+  // update select-all state
+  document.getElementById('csv_sel_all').checked = false;
+}
+
+function findBankMatch(r){
+  // match by amount AND date within ±3 days
+  const rDate = new Date(r.date).getTime();
+  const THREE = 3*24*3600*1000;
+  return DATA.bank.findIndex(b => {
+    const bDate = new Date(b.date).getTime();
+    const amtMatch =
+      (r.in  > 0 && Math.abs((b.in||0)  - r.in)  < 0.02) ||
+      (r.out > 0 && Math.abs((b.out||0) - r.out) < 0.02);
+    const dateMatch = !isNaN(rDate) && !isNaN(bDate) && Math.abs(rDate - bDate) <= THREE;
+    return amtMatch && dateMatch;
+  });
+}
+
+function toggleAllCSV(checked){
+  document.querySelectorAll('.csv-row-cb').forEach(cb => cb.checked = checked);
+}
+
+function importCSVRows(){
+  const body = document.getElementById('csv_preview_body');
+  if(!body._parsed){ alert('Prima esegui l\'anteprima.'); return; }
+  const checked = [...document.querySelectorAll('.csv-row-cb:checked')].map(cb => parseInt(cb.dataset.idx));
+  if(checked.length === 0){ alert('Nessuna riga selezionata.'); return; }
+
+  const defaultCat = document.getElementById('b_cat').value || 'Altro';
+  checked.forEach(idx => {
+    const r = body._parsed[idx];
+    DATA.bank.push({
+      date: r.date, desc: r.desc,
+      in: r.in, out: r.out,
+      cat: r.cat || defaultCat, rec: 'N'
+    });
+  });
+  DATA.bank.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  saveData();
+  renderBanca();
+
+  // reset import UI
+  document.getElementById('csv_file').value = '';
+  document.getElementById('csv_map_wrap').style.display = 'none';
+  document.getElementById('csv_preview_wrap').style.display = 'none';
+  CSV_ROWS = []; CSV_HEADERS = [];
+  alert(`✅ ${checked.length} movimenti importati. Controlla la categoria e la riconciliazione nella tabella sottostante.`);
+}
+
+function renderBankWeekly(){
+  const body = document.getElementById('bankWeekBody');
+  if(!body) return;
+  // only weeks that overlap with bank data
+  const bank = DATA.bank;
+  if(!bank || bank.length === 0){ body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;">Nessun movimento importato</td></tr>'; return; }
+
+  const rows = DELTA_BASE.map(w => {
+    const mvts = bank.filter(b => b.date >= w.start26 && b.date <= w.end26);
+    if(mvts.length === 0) return null;
+    const ein  = mvts.reduce((s,m)=>s+(m.in||0),0);
+    const eout = mvts.reduce((s,m)=>s+(m.out||0),0);
+    const netto = ein - eout;
+    // top categories
+    const catMap = {};
+    mvts.forEach(m => { const c = m.cat||'—'; catMap[c]=(catMap[c]||0)+1; });
+    const topCats = Object.entries(catMap).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([c])=>c).join(', ');
+    return {w: w.w, start: w.start26, end: w.end26, ein, eout, netto, topCats, count: mvts.length};
+  }).filter(Boolean);
+
+  if(rows.length === 0){ body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999;">Nessun movimento nelle settimane FRS</td></tr>'; return; }
+
+  body.innerHTML = rows.map(r => `
+    <tr>
+      <td><b>W${r.w}</b></td>
+      <td class="small">${r.start} / ${r.end}</td>
+      <td class="delta-pos">${r.ein ? eur(r.ein) : '—'}</td>
+      <td class="delta-neg">${r.eout ? eur(r.eout) : '—'}</td>
+      <td style="font-weight:bold;color:${r.netto>=0?'var(--green)':'var(--red)'}">${eur(r.netto)}</td>
+      <td class="left small" style="max-width:300px;">${r.topCats}</td>
+      <td>${r.count}</td>
+    </tr>`).join('');
+}
+
+function renderBankCategorie(){
+  const body = document.getElementById('bankCatBody');
+  if(!body) return;
+  const bank = DATA.bank;
+  if(!bank || bank.length === 0){ body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999;">Nessun movimento</td></tr>'; return; }
+
+  const catMap = {};
+  bank.forEach(m => {
+    const c = m.cat || '—';
+    if(!catMap[c]) catMap[c] = {ein:0, eout:0, count:0};
+    catMap[c].ein   += m.in  || 0;
+    catMap[c].eout  += m.out || 0;
+    catMap[c].count++;
+  });
+
+  const sorted = Object.entries(catMap).sort((a,b) => (b[1].eout+b[1].ein)-(a[1].eout+a[1].ein));
+  body.innerHTML = sorted.map(([cat, d]) => `
+    <tr>
+      <td class="left">${cat}</td>
+      <td class="delta-pos">${d.ein ? eur(d.ein) : '—'}</td>
+      <td class="delta-neg">${d.eout ? eur(d.eout) : '—'}</td>
+      <td style="font-weight:bold;color:${(d.ein-d.eout)>=0?'var(--green)':'var(--red)'}">${eur(d.ein-d.eout)}</td>
+      <td>${d.count}</td>
+    </tr>`).join('');
+}
+
+// ---------- DELTA 2025/2026 ----------
+const DELTA_BASE = [
+  {w:1,  start25:"2025-01-02",end25:"2025-01-08",amt25:null, start26:"2026-01-01",end26:"2026-01-07",amt26:null, desc26:""},
+  {w:2,  start25:"2025-01-09",end25:"2025-01-15",amt25:null, start26:"2026-01-08",end26:"2026-01-14",amt26:null, desc26:""},
+  {w:3,  start25:"2025-01-16",end25:"2025-01-22",amt25:null, start26:"2026-01-15",end26:"2026-01-21",amt26:53900.18, desc26:"Storno PIXARTPRINTING (220,18) | Giuseppe Forestiero / Fabricia A. Quiles Biagi — fattura 009/2025 del 06.11.2025 (53 680,00)"},
+  {w:4,  start25:"2025-01-23",end25:"2025-01-29",amt25:null, start26:"2026-01-22",end26:"2026-01-28",amt26:3887.83, desc26:"WORLD TRADE COMPANY S.A. — saldo (3 887,83)"},
+  {w:5,  start25:"2025-01-30",end25:"2025-02-05",amt25:null, start26:"2026-01-29",end26:"2026-02-04",amt26:null, desc26:""},
+  {w:6,  start25:"2025-02-06",end25:"2025-02-12",amt25:null, start26:"2026-02-05",end26:"2026-02-11",amt26:152500, desc26:"PATERLINI MARIO / GONZALEZ CHRISTINE-MA — fattura 2/2026 del 09.02.2026 (100 000,00) | DAVIDZON Valery — fattura 003/2026 del 02.02.2026 (52 500,00)"},
+  {w:7,  start25:"2025-02-13",end25:"2025-02-19",amt25:null, start26:"2026-02-12",end26:"2026-02-18",amt26:null, desc26:""},
+  {w:8,  start25:"2025-02-20",end25:"2025-02-26",amt25:null, start26:"2026-02-19",end26:"2026-02-25",amt26:null, desc26:""},
+  {w:9,  start25:"2025-02-27",end25:"2025-03-05",amt25:null, start26:"2026-02-26",end26:"2026-03-04",amt26:126392, desc26:"MILANO NOTAI — saldo prof. 1/2026 (126 392,00)"},
+  {w:10, start25:"2025-03-06",end25:"2025-03-12",amt25:null, start26:"2026-03-05",end26:"2026-03-11",amt26:null, desc26:""},
+  {w:11, start25:"2025-03-13",end25:"2025-03-19",amt25:null, start26:"2026-03-12",end26:"2026-03-18",amt26:134200, desc26:"MGHM INVESTMENT SRL C/O MG RISTORAZIO — vs fattura 19 (134 200,00)"},
+  {w:12, start25:"2025-03-20",end25:"2025-03-26",amt25:null, start26:"2026-03-19",end26:"2026-03-25",amt26:null, desc26:""},
+  {w:13, start25:"2025-03-27",end25:"2025-04-02",amt25:null, start26:"2026-03-26",end26:"2026-04-01",amt26:null, desc26:""},
+  {w:14, start25:"2025-04-03",end25:"2025-04-09",amt25:null, start26:"2026-04-02",end26:"2026-04-08",amt26:null, desc26:""},
+  {w:15, start25:"2025-04-10",end25:"2025-04-16",amt25:null, start26:"2026-04-09",end26:"2026-04-15",amt26:null, desc26:""},
+  {w:16, start25:"2025-04-17",end25:"2025-04-23",amt25:null, start26:"2026-04-16",end26:"2026-04-22",amt26:null, desc26:""},
+  {w:17, start25:"2025-04-24",end25:"2025-04-30",amt25:null, start26:"2026-04-23",end26:"2026-04-29",amt26:null, desc26:""},
+  {w:18, start25:"2025-05-01",end25:"2025-05-07",amt25:2200,  start26:"2026-04-30",end26:"2026-05-06",amt26:null, desc26:""},
+  {w:19, start25:"2025-05-08",end25:"2025-05-14",amt25:4000,  start26:"2026-05-07",end26:"2026-05-13",amt26:null, desc26:""},
+  {w:20, start25:"2025-05-15",end25:"2025-05-21",amt25:null, start26:"2026-05-14",end26:"2026-05-20",amt26:null, desc26:""},
+  {w:21, start25:"2025-05-22",end25:"2025-05-28",amt25:null, start26:"2026-05-21",end26:"2026-05-27",amt26:null, desc26:""},
+  {w:22, start25:"2025-05-29",end25:"2025-06-04",amt25:null, start26:"2026-05-28",end26:"2026-06-03",amt26:null, desc26:""},
+  {w:23, start25:"2025-06-05",end25:"2025-06-11",amt25:null, start26:"2026-06-04",end26:"2026-06-10",amt26:null, desc26:""},
+  {w:24, start25:"2025-06-12",end25:"2025-06-18",amt25:null, start26:"2026-06-11",end26:"2026-06-17",amt26:null, desc26:""},
+  {w:25, start25:"2025-06-19",end25:"2025-06-25",amt25:40086.12, start26:"2026-06-18",end26:"2026-06-24",amt26:null, desc26:""},
+  {w:26, start25:"2025-06-26",end25:"2025-07-02",amt25:null, start26:"2026-06-25",end26:"2026-07-01",amt26:null, desc26:""},
+  {w:27, start25:"2025-07-03",end25:"2025-07-09",amt25:null, start26:"2026-07-02",end26:"2026-07-08",amt26:null, desc26:""},
+  {w:28, start25:"2025-07-10",end25:"2025-07-16",amt25:null, start26:"2026-07-09",end26:"2026-07-15",amt26:null, desc26:""},
+  {w:29, start25:"2025-07-17",end25:"2025-07-23",amt25:null, start26:"2026-07-16",end26:"2026-07-22",amt26:null, desc26:""},
+  {w:30, start25:"2025-07-24",end25:"2025-07-30",amt25:58700, start26:"2026-07-23",end26:"2026-07-29",amt26:null, desc26:""},
+  {w:31, start25:"2025-07-31",end25:"2025-08-06",amt25:2000,  start26:"2026-07-30",end26:"2026-08-05",amt26:null, desc26:""},
+  {w:32, start25:"2025-08-07",end25:"2025-08-13",amt25:11895, start26:"2026-08-06",end26:"2026-08-12",amt26:null, desc26:""},
+  {w:33, start25:"2025-08-14",end25:"2025-08-20",amt25:null, start26:"2026-08-13",end26:"2026-08-19",amt26:null, desc26:""},
+  {w:34, start25:"2025-08-21",end25:"2025-08-27",amt25:null, start26:"2026-08-20",end26:"2026-08-26",amt26:null, desc26:""},
+  {w:35, start25:"2025-08-28",end25:"2025-09-03",amt25:null, start26:"2026-08-27",end26:"2026-09-02",amt26:null, desc26:""},
+  {w:36, start25:"2025-09-04",end25:"2025-09-10",amt25:null, start26:"2026-09-03",end26:"2026-09-09",amt26:null, desc26:""},
+  {w:37, start25:"2025-09-11",end25:"2025-09-17",amt25:13980, start26:"2026-09-10",end26:"2026-09-16",amt26:null, desc26:""},
+  {w:38, start25:"2025-09-18",end25:"2025-09-24",amt25:138.52,start26:"2026-09-17",end26:"2026-09-23",amt26:null, desc26:""},
+  {w:39, start25:"2025-09-25",end25:"2025-10-01",amt25:365.58,start26:"2026-09-24",end26:"2026-09-30",amt26:null, desc26:""},
+  {w:40, start25:"2025-10-02",end25:"2025-10-08",amt25:37.47, start26:"2026-10-01",end26:"2026-10-07",amt26:null, desc26:""},
+  {w:41, start25:"2025-10-09",end25:"2025-10-15",amt25:64495, start26:"2026-10-08",end26:"2026-10-14",amt26:null, desc26:""},
+  {w:42, start25:"2025-10-16",end25:"2025-10-22",amt25:33855, start26:"2026-10-15",end26:"2026-10-21",amt26:null, desc26:""},
+  {w:43, start25:"2025-10-23",end25:"2025-10-29",amt25:null, start26:"2026-10-22",end26:"2026-10-28",amt26:null, desc26:""},
+  {w:44, start25:"2025-10-30",end25:"2025-11-05",amt25:null, start26:"2026-10-29",end26:"2026-11-04",amt26:null, desc26:""},
+  {w:45, start25:"2025-11-06",end25:"2025-11-12",amt25:null, start26:"2026-11-05",end26:"2026-11-11",amt26:null, desc26:""},
+  {w:46, start25:"2025-11-13",end25:"2025-11-19",amt25:53680, start26:"2026-11-12",end26:"2026-11-18",amt26:null, desc26:""},
+  {w:47, start25:"2025-11-20",end25:"2025-11-26",amt25:null, start26:"2026-11-19",end26:"2026-11-25",amt26:null, desc26:""},
+  {w:48, start25:"2025-11-27",end25:"2025-12-03",amt25:54246.95,start26:"2026-11-26",end26:"2026-12-02",amt26:null, desc26:""},
+  {w:49, start25:"2025-12-04",end25:"2025-12-10",amt25:22875, start26:"2026-12-03",end26:"2026-12-09",amt26:null, desc26:""},
+  {w:50, start25:"2025-12-11",end25:"2025-12-17",amt25:null, start26:"2026-12-10",end26:"2026-12-16",amt26:null, desc26:""},
+  {w:51, start25:"2025-12-18",end25:"2025-12-24",amt25:136.61,start26:"2026-12-17",end26:"2026-12-23",amt26:null, desc26:""},
+  {w:52, start25:"2025-12-25",end25:"2025-12-31",amt25:33000, start26:"2026-12-24",end26:"2026-12-30",amt26:null, desc26:""}
+];
+
+function getDeltaRows(){
+  const edits = DATA.deltaEdits || {};
+  let prog = 0;
+  return DELTA_BASE.map(b => {
+    const e = edits[b.w] || {};
+    const amt26 = e.amt26 !== undefined ? e.amt26 : b.amt26;
+    const desc26 = e.desc26 !== undefined ? e.desc26 : b.desc26;
+    const amt25 = b.amt25 || 0;
+    const a26 = amt26 || 0;
+    const delta = a26 - amt25;
+    prog += delta;
+    return {...b, amt26, desc26, delta, deltaP: Math.round(prog*100)/100};
+  });
+}
+
+function saveDeltaRow(w){
+  const numEl = document.getElementById(`dr_amt_${w}`);
+  const descEl = document.getElementById(`dr_desc_${w}`);
+  if(!DATA.deltaEdits) DATA.deltaEdits = {};
+  const val = numEl.value.trim();
+  DATA.deltaEdits[w] = {
+    amt26: val === '' ? null : parseFloat(val),
+    desc26: descEl.value
+  };
+  saveData();
+  renderDeltaDashboard();
+}
+
+function resetDeltaEdits(){
+  if(!confirm('Annullare tutte le modifiche manuali alle settimane 2026?')) return;
+  DATA.deltaEdits = {};
+  saveData();
+  renderDeltaDashboard();
+}
+
+function renderDeltaDashboard(){
+  const rows = getDeltaRows();
+  const today = new Date().toISOString().slice(0,10);
+
+  // ---- KPIs ----
+  const tot26 = rows.reduce((s,r)=>s+(r.amt26||0),0);
+  const tot25 = rows.reduce((s,r)=>s+(r.amt25||0),0);
+  const lastDeltaP = rows[rows.length-1].deltaP;
+  const wActive = rows.filter(r=> r.end26 <= today);
+  const wDone = wActive.length;
+  const wRemain = 52 - wDone;
+  const positiveWeeks = rows.filter(r=>r.delta>0).length;
+  const negativeWeeks = rows.filter(r=>r.delta<0).length;
+  const peakDeltaP = Math.max(...rows.map(r=>r.deltaP));
+  const peakWeek = rows.find(r=>r.deltaP===peakDeltaP);
+
+  document.getElementById('deltaKpi').innerHTML = `
+    <div class="kpi delta-ok">
+      <div class="label">Totale incassato 2026</div>
+      <div class="value">${eur(tot26)}</div>
+      <div class="sub">${rows.filter(r=>r.amt26).length} settimane con incasso</div>
+    </div>
+    <div class="kpi delta-warn">
+      <div class="label">Totale spese 2025</div>
+      <div class="value">${eur(tot25)}</div>
+      <div class="sub">${rows.filter(r=>r.amt25).length} settimane con spesa</div>
+    </div>
+    <div class="kpi ${lastDeltaP>=0?'delta-ok':'delta-warn'}">
+      <div class="label">Delta progressivo finale</div>
+      <div class="value ${lastDeltaP>=0?'delta-pos':'delta-neg'}">${eur(lastDeltaP)}</div>
+      <div class="sub">2026 − 2025 cumulato</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Picco delta progressivo</div>
+      <div class="value delta-pos">${eur(peakDeltaP)}</div>
+      <div class="sub">Sett. ${peakWeek?peakWeek.w:'-'} (${peakWeek?peakWeek.end26:''})</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Settimane completate / rimanenti</div>
+      <div class="value">${wDone} <span style="font-size:14px;color:#888;">/ ${wRemain}</span></div>
+      <div class="sub">Al ${today}</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Sett. positive / negative</div>
+      <div class="value"><span class="delta-pos">${positiveWeeks}↑</span> <span class="delta-neg">${negativeWeeks}↓</span></div>
+      <div class="sub">Su 52 settimane totali</div>
+    </div>`;
+
+  drawLineChart(rows);
+  drawBarChart(rows);
+  drawMonthChart(rows);
+  renderDeltaTable(rows);
+}
+
+// SVG helpers
+function svgLine(pts, stroke, width=2){
+  if(pts.length<2) return '';
+  const d = pts.map((p,i)=>(i===0?`M${p[0]},${p[1]}`:`L${p[0]},${p[1]}`)).join(' ');
+  return `<path d="${d}" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linejoin="round"/>`;
+}
+function svgText(x,y,txt,anchor='middle',size=10,fill='#555'){
+  return `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="${size}" fill="${fill}" font-family="Arial">${txt}</text>`;
+}
+
+function drawLineChart(rows){
+  const W=900, H=280, PL=70, PR=20, PT=20, PB=40;
+  const cw=W-PL-PR, ch=H-PT-PB;
+  const vals = rows.map(r=>r.deltaP);
+  const minV = Math.min(...vals,0), maxV = Math.max(...vals,1);
+  const xS = i => PL + (i/(rows.length-1))*cw;
+  const yS = v => PT + ch - ((v-minV)/(maxV-minV))*ch;
+  const zero = yS(0);
+
+  // grid lines
+  let grid='', labels='';
+  const steps = 5;
+  for(let i=0;i<=steps;i++){
+    const v = minV + (maxV-minV)*(i/steps);
+    const y = yS(v);
+    grid += `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="#e0e0e0" stroke-width="1"/>`;
+    labels += svgText(PL-6, y+4, (v/1000).toFixed(0)+'k', 'end', 9);
+  }
+  // x-axis month labels
+  const months=['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  months.forEach((m,mi)=>{
+    const wi = Math.round(mi*52/12);
+    const x = PL+(wi/(rows.length-1))*cw;
+    grid += `<line x1="${x}" y1="${PT}" x2="${x}" y2="${H-PB}" stroke="#eee" stroke-width="1" stroke-dasharray="3,3"/>`;
+    labels += svgText(x, H-PB+14, m, 'middle', 9);
+  });
+
+  // zero line
+  const zeroLine = `<line x1="${PL}" y1="${zero}" x2="${W-PR}" y2="${zero}" stroke="#aaa" stroke-width="1" stroke-dasharray="4,2"/>`;
+
+  // area fill
+  const pts = rows.map((r,i)=>[xS(i), yS(r.deltaP)]);
+  const area = `<polygon points="${pts.map(p=>p.join(',')).join(' ')} ${xS(51)},${zero} ${xS(0)},${zero}"
+    fill="rgba(30,132,73,0.12)" stroke="none"/>`;
+
+  // line
+  const line = svgLine(pts, '#1E8449', 2.5);
+
+  // dots for non-zero delta weeks
+  const dots = rows.filter(r=>r.delta!==0).map(r=>{
+    const i=r.w-1;
+    const cx=xS(i), cy=yS(r.deltaP);
+    const c=r.delta>0?'#1E8449':'#922B21';
+    return `<circle cx="${cx}" cy="${cy}" r="4" fill="${c}" stroke="#fff" stroke-width="1.5"/>`;
+  }).join('');
+
+  // today marker
+  const today = new Date().toISOString().slice(0,10);
+  const todayIdx = rows.filter(r=>r.end26<=today).length-1;
+  let todayMark='';
+  if(todayIdx>=0 && todayIdx<52){
+    const tx=xS(todayIdx);
+    todayMark=`<line x1="${tx}" y1="${PT}" x2="${tx}" y2="${H-PB}" stroke="#C9A84C" stroke-width="2" stroke-dasharray="5,3"/>
+    ${svgText(tx, PT-6, 'oggi', 'middle', 9, '#C9A84C')}`;
+  }
+
+  document.getElementById('chartLine').innerHTML =
+    `<rect x="0" y="0" width="${W}" height="${H}" fill="#fff" rx="4"/>
+    ${grid}${zeroLine}${area}${line}${dots}${todayMark}${labels}
+    ${svgText(PL-50, PT+ch/2, '€', 'middle', 10, '#888')}
+    ${svgText(W/2, H-2, 'Settimana', 'middle', 10, '#888')}`;
+}
+
+function drawBarChart(rows){
+  const W=900, H=220, PL=70, PR=20, PT=20, PB=35;
+  const cw=W-PL-PR, ch=H-PT-PB;
+  const vals=rows.map(r=>r.delta);
+  const maxAbs=Math.max(...vals.map(Math.abs),1);
+  const bw = cw/rows.length;
+  const zero = PT+ch/2;
+
+  let bars='', labels='';
+  rows.forEach((r,i)=>{
+    if(r.delta===0) return;
+    const x=PL+i*bw+bw*0.1;
+    const bw2=bw*0.8;
+    const h=Math.abs(r.delta)/maxAbs*(ch/2-2);
+    const y=r.delta>0?zero-h:zero;
+    const fill=r.delta>0?'#1E8449':'#922B21';
+    bars+=`<rect x="${x}" y="${y}" width="${bw2}" height="${h}" fill="${fill}" opacity="0.8"/>`;
+  });
+
+  // zero line + grid
+  const grid=`<line x1="${PL}" y1="${zero}" x2="${W-PR}" y2="${zero}" stroke="#888" stroke-width="1.5"/>`;
+  const months=['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  months.forEach((m,mi)=>{
+    const wi=Math.round(mi*52/12);
+    const x=PL+wi*bw;
+    labels+=svgText(x+bw/2, H-PB+14, m,'middle',9);
+  });
+
+  // y labels
+  const yTop=svgText(PL-6, PT+8, '+'+(maxAbs/1000).toFixed(0)+'k','end',9);
+  const yBot=svgText(PL-6, H-PB-4, '-'+(maxAbs/1000).toFixed(0)+'k','end',9);
+
+  document.getElementById('chartBar').innerHTML =
+    `<rect x="0" y="0" width="${W}" height="${H}" fill="#fff" rx="4"/>
+    ${grid}${bars}${labels}${yTop}${yBot}
+    ${svgText(W/2,H-2,'Settimana','middle',10,'#888')}`;
+}
+
+function drawMonthChart(rows){
+  const W=900, H=220, PL=70, PR=20, PT=20, PB=35;
+  const cw=W-PL-PR, ch=H-PT-PB;
+  const months=['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  // aggregate by month from end26 date
+  const m25=new Array(12).fill(0), m26=new Array(12).fill(0);
+  rows.forEach(r=>{
+    const mo = parseInt(r.end26.slice(5,7))-1;
+    if(mo>=0 && mo<12){
+      m25[mo]+=(r.amt25||0);
+      m26[mo]+=(r.amt26||0);
+    }
+  });
+  const maxV=Math.max(...m25,...m26,1);
+  const bw=cw/12;
+
+  let bars='',labs='';
+  months.forEach((m,mi)=>{
+    const x=PL+mi*bw;
+    const b25w=bw*0.38, b26w=bw*0.38;
+    const h25=m25[mi]/maxV*(ch-4), h26=m26[mi]/maxV*(ch-4);
+    if(h25>0) bars+=`<rect x="${x+bw*0.06}" y="${PT+ch-h25}" width="${b25w}" height="${h25}" fill="#922B21" opacity="0.7" rx="2"/>`;
+    if(h26>0) bars+=`<rect x="${x+bw*0.5}" y="${PT+ch-h26}" width="${b26w}" height="${h26}" fill="#1E8449" opacity="0.8" rx="2"/>`;
+    labs+=svgText(x+bw/2, H-PB+14, m,'middle',9);
+  });
+
+  // y labels
+  let grid='';
+  [0,0.25,0.5,0.75,1].forEach(f=>{
+    const y=PT+ch-f*ch;
+    grid+=`<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="#e8e8e8" stroke-width="1"/>`;
+    grid+=svgText(PL-6, y+4, (maxV*f/1000).toFixed(0)+'k','end',9);
+  });
+
+  // legend
+  const legend=`<rect x="${W-PR-120}" y="${PT}" width="12" height="12" fill="#922B21" opacity="0.7"/>
+    ${svgText(W-PR-104, PT+10, '2025','start',10,'#555')}
+    <rect x="${W-PR-70}" y="${PT}" width="12" height="12" fill="#1E8449" opacity="0.8"/>
+    ${svgText(W-PR-54, PT+10, '2026','start',10,'#555')}`;
+
+  document.getElementById('chartMonth').innerHTML =
+    `<rect x="0" y="0" width="${W}" height="${H}" fill="#fff" rx="4"/>
+    ${grid}${bars}${labs}${legend}
+    ${svgText(W/2,H-2,'Mese','middle',10,'#888')}`;
+}
+
+function renderDeltaTable(rows){
+  const body=document.getElementById('deltaBody');
+  body.innerHTML='';
+  const today=new Date().toISOString().slice(0,10);
+  let tot25=0, tot26=0, totDelta=0;
+  rows.forEach(r=>{
+    const isPast = r.end26 <= today;
+    const cls = r.delta>0?'d-pos':r.delta<0?'d-neg':'';
+    const deltaClass = r.delta>0?'delta-pos':r.delta<0?'delta-neg':'delta-zero';
+    const fmtPeriod = (s,e)=>{
+      if(!s) return '';
+      const sm=s.slice(5,10).replace('-','/'), em=e.slice(5,10).replace('-','/');
+      return `${sm}→${em}`;
+    };
+    const a25 = r.amt25 ? eur(r.amt25) : '<span class="small">—</span>';
+    const a26cur = r.amt26!=null ? r.amt26 : '';
+    const editable = !isPast || true; // always editable
+    const tr=document.createElement('tr');
+    if(cls) tr.className=cls;
+    tr.innerHTML=`
+      <td>${r.w}</td>
+      <td class="small">${fmtPeriod(r.start25,r.end25)}</td>
+      <td>${a25}</td>
+      <td class="small">${fmtPeriod(r.start26,r.end26)}</td>
+      <td><input class="inline-num" id="dr_amt_${r.w}" type="number" step="0.01" value="${a26cur}" placeholder="0,00"></td>
+      <td class="${deltaClass}">${r.delta!==0?eur(r.delta):'<span class="small">—</span>'}</td>
+      <td class="${r.deltaP>=0?'delta-pos':'delta-neg'}">${eur(r.deltaP)}</td>
+      <td><input class="inline-desc" id="dr_desc_${r.w}" type="text" value="${r.desc26}" placeholder="Fornitore / Fattura..."></td>
+      <td><button class="btn-save-row" onclick="saveDeltaRow(${r.w})">Salva</button></td>`;
+    body.appendChild(tr);
+    tot25+=r.amt25||0; tot26+=r.amt26||0; totDelta+=r.delta;
+  });
+  document.getElementById('deltaFoot').innerHTML=`
+    <tr class="tot-row">
+      <td colspan="2" class="left">TOTALE</td>
+      <td>${eur(tot25)}</td><td></td><td>${eur(tot26)}</td>
+      <td class="${totDelta>=0?'delta-pos':'delta-neg'}">${eur(totDelta)}</td>
+      <td class="${totDelta>=0?'delta-pos':'delta-neg'}">${eur(totDelta)}</td>
+      <td colspan="2"></td>
+    </tr>`;
+}
+
+function exportDelta(){
+  const rows=getDeltaRows();
+  const data=[['#','Periodo 2025','Importo 2025','Periodo 2026','Importo 2026','Delta sett.','Delta progress.','Descrizione 2026']];
+  rows.forEach(r=>{
+    data.push([r.w,`${r.start25}→${r.end25}`,numIT(r.amt25||0),`${r.start26}→${r.end26}`,
+      r.amt26!=null?numIT(r.amt26):'',numIT(r.delta),numIT(r.deltaP),r.desc26]);
+  });
+  downloadCSV('Bellavista_Delta_2025_2026.csv',data);
+}
+
+// ---------- INIT ----------
+renderCategorie();
+renderDistribuzione();
+renderPO();
+renderDeltaDashboard();
+document.getElementById('b_saldoConto').value = DATA.bankBalances.conto || '';
+document.getElementById('b_saldoLibro').value = DATA.bankBalances.libro || '';
+renderBanca();
+renderParams();
+renderDashboard();
+
+// persist bank balances on change
+['b_saldoConto','b_saldoLibro'].forEach(id=>{
+  document.getElementById(id).addEventListener('change', ()=>{
+    DATA.bankBalances.conto = parseFloat(document.getElementById('b_saldoConto').value)||0;
+    DATA.bankBalances.libro = parseFloat(document.getElementById('b_saldoLibro').value)||0;
+    saveData();
+  });
+});
+</script>
+</body>
+</html>
