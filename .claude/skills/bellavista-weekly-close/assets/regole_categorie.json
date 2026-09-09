@@ -200,7 +200,7 @@
     "Operazioni Finanziarie - Commissioni": "Commissioni",
     "Operazioni Finanziarie - Interessi negativi": "Commissioni",
     "Operazioni Finanziarie - Prelievo contante": "Altro",
-    "Operazioni Finanziarie - Multe e sanzioni": "Altro",
+    "Operazioni Finanziarie - Multe e sanzioni": "Sanzioni",
     "Fornitori - Materie prime, beni e servizi": "Fattura Fornitore",
     "Fornitori - Generico": "Fattura Fornitore",
     "Fornitori - POS": "Fattura Fornitore",
@@ -209,7 +209,7 @@
     "Servizi - Spese per manutenzione": "Spese Ufficio",
     "Servizi - Spese condominiali": "Spese Ufficio",
     "Servizi - Spese Marketing e Pubblicita": "Marketing",
-    "Servizi - Spese per Quote Associative": "Altro",
+    "Servizi - Spese per Quote Associative": "Rappresentanza",
     "Servizi - Generico": "Altro",
     "Utenze - Acqua, luce e gas": "Spese Ufficio",
     "Utenze - Internet e spese telefoniche": "Spese Ufficio",
@@ -221,15 +221,15 @@
     "Intercompany in entrata - Traferimento fondi IC in entrata": "Finanziamento IC",
     "Intercompany in entrata - Prestiti a soci in entrata": "Finanziamento IC",
     "Immobilizzazioni - incremento - Immobilizzazioni immateriali (Brevetti e Software)": "Software",
-    "Trasporti - Pedaggi": "Altro",
-    "Trasporti - Carburanti": "Altro",
-    "Trasporti - Manutenzione veicoli": "Altro",
-    "Trasferte - Alberghi": "Altro",
+    "Trasporti - Pedaggi": "Auto e Trasferte",
+    "Trasporti - Carburanti": "Auto e Trasferte",
+    "Trasporti - Manutenzione veicoli": "Auto e Trasferte",
+    "Trasferte - Alberghi": "Auto e Trasferte",
     "Altre spese - Generico": "Altro",
-    "Altre spese - Spese alimentari": "Altro",
-    "Altre spese - Spese non alimentari": "Altro",
-    "Altre spese - Catering e ristoranti": "Altro",
-    "Assicurazione - Generico": "Altro"
+    "Altre spese - Spese alimentari": "Rappresentanza",
+    "Altre spese - Spese non alimentari": "Rappresentanza",
+    "Altre spese - Catering e ristoranti": "Rappresentanza",
+    "Assicurazione - Generico": "Assicurazioni"
   },
   "_commento_ricavi": "Solo queste categorie sono ricavi da distribuire nei fondi FRS. I giroconti intercompany, i prestiti soci e i rimborsi ricevuti entrano sul conto ma non sono fatturato: distribuirli gonfierebbe i fondi di soldi che non sono mai stati guadagnati.",
   "ricavi_frs": [
@@ -237,7 +237,7 @@
     "Mediazione Immobiliare",
     "Saldo Commerciale"
   ],
-  "_commento_forzate": "Regole che BATTONO la categoria assegnata da Banco BPM, perché l'etichetta automatica della banca in questi casi è dimostrabilmente sbagliata: i giroconti che COMO LAKE ESTATE SRL si fa da un proprio conto all'altro arrivano marcati come 'Ricavi'. Contarli come fatturato gonfia i fondi FRS con denaro che non e' mai stato guadagnato. Verificato: togliendoli, le settimane 6, 9 e 11 coincidono al centesimo con i dati inseriti a mano nella scheda Delta 2025/2026. I movimenti con CBV INTERIOR GALLERY sono finanziamenti infruttiferi infragruppo (confermato dalla titolare), non fatturato: vanno in Finanziamento IC in entrata come in uscita. MAYOROVA KSENIA: la banca mette i pagamenti da 19.000 in «Altre spese - Generico» e quelli da 1.000 in «Fornitori», pur essendo lo stesso soggetto; si uniformano a Fattura Fornitore.",
+  "_commento_forzate": "Regole che BATTONO la categoria assegnata da Banco BPM, perché l'etichetta automatica della banca in questi casi è dimostrabilmente sbagliata: i giroconti che COMO LAKE ESTATE SRL si fa da un proprio conto all'altro arrivano marcati come 'Ricavi'. Contarli come fatturato gonfia i fondi FRS con denaro che non e' mai stato guadagnato. Verificato: togliendoli, le settimane 6, 9 e 11 coincidono al centesimo con i dati inseriti a mano nella scheda Delta 2025/2026. I movimenti con CBV INTERIOR GALLERY sono finanziamenti infruttiferi infragruppo (confermato dalla titolare), non fatturato: vanno in Finanziamento IC in entrata come in uscita. MAYOROVA KSENIA: la banca mette i pagamenti da 19.000 in «Altre spese - Generico» e quelli da 1.000 in «Fornitori», pur essendo lo stesso soggetto; si uniformano a Fattura Fornitore. Fornitori identificati dalla titolare: JamesEdition e ENT Graphic sono marketing, APIMO e DigitalOcean sono software (la banca li mette rispettivamente in «Carburanti» e «Alberghi»), Lucia Rovelli e' saldo provvigioni, Liubov Petelina fattura freelance, la sanzione e' antiriciclaggio.",
   "regole_forzate": [
     {
       "categoria": "Finanziamento IC",
@@ -257,6 +257,73 @@
       "categoria": "Fattura Fornitore",
       "parole": [
         "mayorova ksenia"
+      ]
+    },
+    {
+      "categoria": "Marketing",
+      "parole": [
+        "jamesedition",
+        "ent graphic",
+        "immobiliare.it"
+      ]
+    },
+    {
+      "categoria": "Software",
+      "parole": [
+        "apimo",
+        "digitalocean",
+        "sendpulse",
+        "2co.com"
+      ]
+    },
+    {
+      "categoria": "Formazione Esterna",
+      "parole": [
+        "john lee events",
+        "hwschool",
+        "mmo spa"
+      ]
+    },
+    {
+      "categoria": "Attrezzature Ufficio",
+      "parole": [
+        "samsung",
+        "jimbo holding",
+        "mediaworld"
+      ]
+    },
+    {
+      "categoria": "Assicurazioni",
+      "parole": [
+        "wehub",
+        "polizza"
+      ]
+    },
+    {
+      "categoria": "Mediazione Immobiliare",
+      "parole": [
+        "lucia rovelli"
+      ]
+    },
+    {
+      "categoria": "Consulenze",
+      "parole": [
+        "liubov petelina"
+      ]
+    },
+    {
+      "categoria": "Sanzioni",
+      "parole": [
+        "ministero dell",
+        "ministero dell?economia",
+        "antiriciclaggio"
+      ]
+    },
+    {
+      "categoria": "Rappresentanza",
+      "parole": [
+        "rotary club",
+        "confcommercio"
       ]
     }
   ]

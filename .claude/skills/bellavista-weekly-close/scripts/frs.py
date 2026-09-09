@@ -89,7 +89,10 @@ CATEGORIE_DEFAULT = [
     ("Finanziamento IC", "banca", "debito"), ("Stipendi", "banca", ""),
     ("Tasse", "banca", ""), ("Software", "entrambi", ""), ("Marketing", "entrambi", ""),
     ("Spese Ufficio", "entrambi", ""), ("Formazione Esterna", "entrambi", ""),
-    ("Consulenze", "entrambi", ""), ("Giroconto Interno", "banca", ""),
+    ("Consulenze", "entrambi", ""), ("Assicurazioni", "entrambi", ""),
+    ("Attrezzature Ufficio", "entrambi", ""), ("Rappresentanza", "entrambi", ""),
+    ("Auto e Trasferte", "banca", ""), ("Sanzioni", "banca", ""),
+    ("Giroconto Interno", "banca", ""),
     ("Partita di Giro", "banca", ""),
     ("Altro", "entrambi", ""),
 ]

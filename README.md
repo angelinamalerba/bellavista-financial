@@ -103,6 +103,11 @@ La categoria originale resta salvata in ogni movimento: si legge passando il
 mouse sul menu della categoria, e il pulsante **🔤 Ritraduci categorie dalla
 banca** permette di rifare la traduzione da capo.
 
+Alle categorie di partenza se ne sono aggiunte cinque emerse dai dati reali:
+**Assicurazioni**, **Attrezzature Ufficio**, **Rappresentanza**, **Auto e
+Trasferte** e **Sanzioni**. Senza di quelle un quarto dei movimenti finiva in
+«Altro» non perché fosse indistinto, ma perché non c'era dove metterlo.
+
 ⚠️ La stessa tabella esiste anche nello skill (`assets/regole_categorie.json`).
 Se si modifica una regola va aggiornata in entrambi i posti, altrimenti importare
 il CSV nell'app e farlo elaborare allo skill darebbe risultati diversi.
