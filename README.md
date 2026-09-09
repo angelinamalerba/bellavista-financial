@@ -87,6 +87,26 @@ Perché funzioni, in fase di import va mappata anche la colonna **Conto /
 Rapporto**: le ultime quattro cifre compaiono poi accanto a ogni movimento,
 insieme all'ID della coppia.
 
+## Traduzione delle categorie della banca
+
+Banco BPM esporta una propria colonna Categoria/sottocategoria con una tassonomia
+tutta sua — «Servizi - Spese per servizi online», «Fornitori - POS». Presa alla
+lettera riempirebbe la Vista per Categoria di nomi estranei, incomparabili con i
+Purchase Orders e con i fondi FRS.
+
+All'import le categorie vengono tradotte in quelle di «Categorie Spese», e
+l'anteprima mostra quale categoria riceverà ogni riga prima di scrivere. Alcune
+regole sulla causale battono l'etichetta della banca, perché in certi casi è
+sbagliata: i giroconti fra i conti della società arrivano marcati come «Ricavi».
+
+La categoria originale resta salvata in ogni movimento: si legge passando il
+mouse sul menu della categoria, e il pulsante **🔤 Ritraduci categorie dalla
+banca** permette di rifare la traduzione da capo.
+
+⚠️ La stessa tabella esiste anche nello skill (`assets/regole_categorie.json`).
+Se si modifica una regola va aggiornata in entrambi i posti, altrimenti importare
+il CSV nell'app e farlo elaborare allo skill darebbe risultati diversi.
+
 ## Correggere le categorie dei movimenti
 
 Nella scheda Riconciliazione Banca la categoria di ogni movimento è ora un menu

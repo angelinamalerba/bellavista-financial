@@ -336,7 +336,7 @@
         <table id="csv_preview_table">
           <thead><tr>
             <th>✓</th><th>Stato</th><th>Data</th><th>Descrizione</th>
-            <th>Entrata</th><th>Uscita</th><th>Match esistente</th>
+            <th>Entrata</th><th>Uscita</th><th>Categoria</th><th>Match esistente</th>
           </tr></thead>
           <tbody id="csv_preview_body"></tbody>
         </table>
@@ -418,6 +418,7 @@
       pochi giorni di distanza; per le partite di giro la parola «storno» o la stessa controparte.</p>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
         <button class="primary" onclick="incrociaOra()">🔗 Incrocia movimenti</button>
+        <button onclick="ritraduciCategorie()">🔤 Ritraduci categorie dalla banca</button>
       </div>
       <div class="table-wrap">
       <table id="incrTable">
@@ -877,7 +878,8 @@ function renderBanca(){
       <td class="small">${m.conto ? '…'+m.conto : ''}${m.gir ? ` <span class="badge annullato" title="movimento incrociato">${m.gir}</span>` : ''}</td>
       <td class="left">${m.desc}</td>
       <td>${m.in? eur(m.in):''}</td><td>${m.out? eur(m.out):''}</td>
-      <td><select data-cat-idx="${idx}" onchange="setBankCat(${idx}, this.value)">${extra}${optBase}</select></td>
+      <td><select data-cat-idx="${idx}" onchange="setBankCat(${idx}, this.value)"
+            title="${m.catBanca ? 'Categoria originale della banca: ' + m.catBanca : 'Nessuna categoria dalla banca'}">${extra}${optBase}</select></td>
       <td><select onchange="setBankRec(${idx}, this.value)">
             <option value="N" ${m.rec==='N'?'selected':''}>No</option>
             <option value="S" ${m.rec==='S'?'selected':''}>Sì</option>
@@ -1535,6 +1537,126 @@ function modelloPO(){
   ]);
 }
 
+// ---------- TRADUZIONE DELLE CATEGORIE DELLA BANCA ----------
+// Banco BPM esporta una propria colonna Categoria/sottocategoria con una
+// tassonomia tutta sua. Presa alla lettera riempie la Vista per Categoria di
+// nomi estranei, incomparabili con i Purchase Orders e con i fondi FRS.
+// Qui si traduce nelle categorie di «Categorie Spese».
+//
+// La categoria originale della banca resta salvata in ogni movimento (campo
+// catBanca): serve a poter rifare la traduzione dopo, e a capire da dove viene
+// una categoria quando sembra sbagliata.
+
+const MAPPA_BANCA = {
+  'Ricavi - Ricavi dalle vendite': 'Fattura Cliente',
+  'Ricavi - Generico': 'Fattura Cliente',
+  'Ricavi - Rimborsi diversi': 'Storno / Rettifica',
+  'Operazioni Finanziarie - Rimborsi a clienti': 'Rimborso Cliente',
+  'Operazioni Finanziarie - Commissioni': 'Commissioni',
+  'Operazioni Finanziarie - Interessi negativi': 'Commissioni',
+  'Operazioni Finanziarie - Prelievo contante': 'Altro',
+  'Operazioni Finanziarie - Multe e sanzioni': 'Altro',
+  'Fornitori - Materie prime, beni e servizi': 'Fattura Fornitore',
+  'Fornitori - Generico': 'Fattura Fornitore',
+  'Fornitori - POS': 'Fattura Fornitore',
+  'Servizi - Spese per servizi online': 'Software',
+  'Servizi - Spese per professionisti': 'Onorario Professionista',
+  'Servizi - Spese per manutenzione': 'Spese Ufficio',
+  'Servizi - Spese condominiali': 'Spese Ufficio',
+  'Servizi - Spese Marketing e Pubblicita': 'Marketing',
+  'Servizi - Spese per Quote Associative': 'Altro',
+  'Servizi - Generico': 'Altro',
+  'Utenze - Acqua, luce e gas': 'Spese Ufficio',
+  'Utenze - Internet e spese telefoniche': 'Spese Ufficio',
+  'Tasse - Imposte e contributi': 'Tasse',
+  'Risorse Umane - Salari e stipendi': 'Stipendi',
+  'Risorse Umane - Rimborso spese': 'Stipendi',
+  'Risorse Umane - TFR': 'Stipendi',
+  'Intercompany in uscita - Trasferimento fondi IC in uscita': 'Finanziamento IC',
+  'Intercompany in entrata - Traferimento fondi IC in entrata': 'Finanziamento IC',
+  'Intercompany in entrata - Prestiti a soci in entrata': 'Finanziamento IC',
+  'Immobilizzazioni - incremento - Immobilizzazioni immateriali (Brevetti e Software)': 'Software',
+  'Trasporti - Pedaggi': 'Altro',
+  'Trasporti - Carburanti': 'Altro',
+  'Trasporti - Manutenzione veicoli': 'Altro',
+  'Trasferte - Alberghi': 'Altro',
+  'Altre spese - Generico': 'Altro',
+  'Altre spese - Spese alimentari': 'Altro',
+  'Altre spese - Spese non alimentari': 'Altro',
+  'Altre spese - Catering e ristoranti': 'Altro',
+  'Assicurazione - Generico': 'Altro'
+};
+
+// Regole che BATTONO la categoria della banca, perché l'etichetta automatica in
+// questi casi è dimostrabilmente sbagliata: i giroconti che COMO LAKE ESTATE
+// SRL si fa fra i propri conti arrivano marcati come «Ricavi», e i movimenti
+// con CBV sono finanziamenti infragruppo, non fatturato.
+const REGOLE_FORZATE = [
+  {cat: 'Finanziamento IC', parole: ['bon.da como lake estate srl', 'da como lake estate srl',
+    'giroconto', 'giriconto', 'finanziamento infruttifero', 'versamento soci',
+    'cbv interior gallery', 'cbv project']},
+  {cat: 'Fattura Fornitore', parole: ['mayorova ksenia']}
+];
+
+// Usate quando la banca non ha messo nessuna categoria. L'ordine conta: vince
+// la prima che corrisponde, quindi le regole strette stanno sopra le larghe.
+const REGOLE_PAROLE = [
+  {cat: 'Storno / Rettifica', parole: ['storno', 'rettifica', 'riaccredito', 'annullamento']},
+  {cat: 'Commissioni', parole: ['commissioni', 'commissione', 'spese tenuta conto', 'canone conto', 'imposta di bollo']},
+  {cat: 'Tasse', parole: ['f24', 'agenzia entrate', 'erario', 'inps', 'irpef', 'ires', 'irap', 'tributi']},
+  {cat: 'Stipendi', parole: ['stipendio', 'stipendi', 'retribuzione', 'cedolino', 'busta paga']},
+  {cat: 'Onorario Notaio', parole: ['notai', 'notaio', 'notarile']},
+  {cat: 'Onorario Professionista', parole: ['commercialista', 'avvocato', 'studio legale', 'geometra', 'architetto', 'parcella']},
+  {cat: 'Mediazione Immobiliare', parole: ['mediazione', 'provvigione', 'intermediazione']},
+  {cat: 'Marketing', parole: ['pixartprinting', 'google ads', 'meta platforms', 'pubblicita', 'advertising']},
+  {cat: 'Software', parole: ['software', 'licenza', 'abbonamento', 'subscription', 'microsoft', 'adobe', 'aruba', 'hosting', 'dominio']},
+  {cat: 'Spese Ufficio', parole: ['cancelleria', 'utenze', 'enel', 'vodafone', 'affitto ufficio', 'locazione', 'pulizie']},
+  {cat: 'Consulenze', parole: ['consulenza', 'consulting']},
+  {cat: 'Fattura Cliente', parole: ['fattura', 'vs fattura', 'saldo prof']}
+];
+
+// Il confronto va fatto senza accenti né maiuscole: la banca scrive
+// «Spese Marketing e Pubblicità» con l'accento e un confronto esatto lo
+// mancherebbe, mandando il movimento nella categoria sbagliata.
+const normCat = t => String(t || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+  .replace(/\s+/g, ' ').trim().toLowerCase();
+
+const MAPPA_BANCA_NORM = Object.fromEntries(
+  Object.entries(MAPPA_BANCA).map(([k, v]) => [normCat(k), v]));
+
+function traduciCategoria(catBanca, desc){
+  const d = (desc || '').toLowerCase();
+  for(const r of REGOLE_FORZATE){
+    if(r.parole.some(p => d.includes(p))) return {cat: r.cat, fonte: 'regola sulla causale'};
+  }
+  const tradotta = MAPPA_BANCA_NORM[normCat(catBanca)];
+  if(tradotta) return {cat: tradotta, fonte: 'categoria della banca'};
+  for(const r of REGOLE_PAROLE){
+    if(r.parole.some(p => d.includes(p))) return {cat: r.cat, fonte: 'regola sulla causale'};
+  }
+  return {cat: catBanca ? 'Altro' : '', fonte: catBanca ? `«${catBanca}» non tradotta` : 'non riconosciuta'};
+}
+
+function ritraduciCategorie(){
+  const senzaOrigine = DATA.bank.filter(m => !m.catBanca).length;
+  if(!confirm('Riassegnare la categoria a tutti i movimenti partendo da quella originale della banca?\n\n' +
+              'Le correzioni fatte a mano verranno sovrascritte.' +
+              (senzaOrigine ? `\n\n${senzaOrigine} movimenti non conservano la categoria della banca ` +
+                              '(importati prima di questa funzione): per quelli si userà solo la causale.' : ''))) return;
+  const conteggio = {};
+  DATA.bank.forEach(m => {
+    if(m.gir) return;                       // i movimenti incrociati hanno già la loro categoria
+    const t = traduciCategoria(m.catBanca, m.desc);
+    if(t.cat){ m.cat = t.cat; conteggio[t.cat] = (conteggio[t.cat] || 0) + 1; }
+  });
+  incrociaMovimenti();
+  saveData();
+  renderBanca();
+  const righe = Object.entries(conteggio).sort((a, b) => b[1] - a[1])
+    .map(([c, n]) => `${c}: ${n}`).join('\n');
+  alert(`Categorie riassegnate.\n\n${righe}`);
+}
+
 // ---------- INCROCIO DEI MOVIMENTI ----------
 // Alcuni movimenti non sono né entrate né uscite vere: sono la stessa somma che
 // si sposta. Un giroconto fra due conti della società compare due volte, come
@@ -2155,7 +2277,9 @@ function previewCSV(){
       eout = iOut !== '' ? (parseAmt(row[iOut], dec) || 0) : 0;
     }
     const conto = iConto !== '' ? ultimeCifre(row[iConto]) : '';
-    return {date, desc, cat, conto, in: ein, out: eout, rawRow: row};
+    const t = traduciCategoria(cat, desc);
+    return {date, desc, cat: t.cat, catBanca: cat, fonteCat: t.fonte,
+            conto, in: ein, out: eout, rawRow: row};
   }).filter(r => r.desc || r.in || r.out);
 
   // match against existing DATA.bank
@@ -2184,6 +2308,8 @@ function previewCSV(){
       <td class="left" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${r.desc}">${r.desc}</td>
       <td class="delta-pos">${r.in  ? eur(r.in)  : ''}</td>
       <td class="delta-neg">${r.out ? eur(r.out) : ''}</td>
+      <td class="small" title="${r.catBanca ? 'dalla banca: ' + r.catBanca : ''}">${r.cat || '—'}
+        ${r.fonteCat && r.fonteCat.includes('non tradotta') ? ' ⚠️' : ''}</td>
       <td class="small left">${matchTxt}</td>`;
     body.appendChild(tr);
   });
@@ -2229,7 +2355,7 @@ function importCSVRows(){
       date: r.date, desc: r.desc,
       in: r.in, out: r.out,
       cat: r.cat || defaultCat, rec: 'N',
-      cp: controparte(r.desc), conto: r.conto || ''
+      cp: controparte(r.desc), conto: r.conto || '', catBanca: r.catBanca || ''
     });
   });
   DATA.bank.sort((a,b) => (a.date||'').localeCompare(b.date||''));
