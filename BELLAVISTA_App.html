@@ -662,6 +662,7 @@ function loadData(){
     const d = JSON.parse(raw);
     if(!d.categorie) d.categorie = DEFAULT_CATEGORIE.map(c=>({...c}));
     if(!d.debiti) d.debiti = [];
+    d.params = {...DEFAULT_PARAMS, ...(d.params || {})};
     return d;
   }
   return { weeks:[], po:[], bank:[], params: DEFAULT_PARAMS, bankBalances:{conto:0, libro:0}, categorie: DEFAULT_CATEGORIE.map(c=>({...c})), debiti:[] };
@@ -1097,7 +1098,9 @@ function importJSON(input){
       weeks: d.weeks,
       po: d.po,
       bank: d.bank,
-      params: d.params || DEFAULT_PARAMS,
+      // i valori mancanti tornano al default: un params parziale calcolerebbe
+      // i fondi su undefined e la Dashboard mostrerebbe NaN invece di un errore
+      params: {...DEFAULT_PARAMS, ...(d.params || {})},
       bankBalances: d.bankBalances || {conto:0, libro:0},
       categorie: (Array.isArray(d.categorie) && d.categorie.length) ? d.categorie : DEFAULT_CATEGORIE.map(c=>({...c})),
       deltaEdits: d.deltaEdits || {},

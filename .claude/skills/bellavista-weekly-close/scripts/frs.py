@@ -930,14 +930,32 @@ def cmd_periodo(a):
         print(f"\n💾 Dettaglio settimana × categoria: `{a.out_matrice}`")
 
     if a.out_json:
-        nuovo = dict(stato) if stato else {"po": [], "params": {}, "bankBalances": {"conto": 0, "libro": 0},
+        nuovo = dict(stato) if stato else {"po": [], "bankBalances": {"conto": 0, "libro": 0},
                                            "deltaEdits": {}, "debiti": []}
+        # senza le percentuali complete l'app calcola i fondi su undefined e la
+        # Dashboard mostra NaN: la quota di ogni fondo va sempre nel file
+        nuovo["params"] = params
         nuovo["categorie"] = categorie_app(stato)
         nuovo.setdefault("debiti", [])
         nuovo["bank"] = [{**{k: m[k] for k in ("date", "desc", "in", "out", "cat", "rec", "cp", "conto")},
                           **({"gir": m["gir"]} if m.get("gir") else {})} for m in mov]
+        settimane_con_ricavi = sorted(k for k in per_sett if k in cal and per_sett[k]["ricavi"] > 0)
         nuovo["weeks"] = [{"date": cal[w]["start"].isoformat(), "amount": round(per_sett[w]["ricavi"], 2)}
-                          for w in sorted(k for k in per_sett if k in cal and per_sett[k]["ricavi"] > 0)]
+                          for w in settimane_con_ricavi]
+
+        # La scheda Delta 2025/2026 si compila a mano e resta indietro: qui si
+        # riempie dai movimenti veri, così il confronto con il 2025 è aggiornato
+        # senza ridigitare nulla. La descrizione elenca le fatture della settimana,
+        # perché un numero senza il suo perché non serve a chi lo rilegge fra un mese.
+        delta = dict(nuovo.get("deltaEdits") or {})
+        for w in settimane_con_ricavi:
+            voci = [m for m in mov if m["settimana"] == w and e_ricavo(m, regole)]
+            def _euro(n):  # solo il numero va convertito in formato italiano, non il nome
+                return f"{n:,.2f}".replace(",", "@").replace(".", ",").replace("@", ".")
+            desc = " | ".join(f"{m['cp'] or 'senza controparte'} ({_euro(m['in'])})"
+                              for m in sorted(voci, key=lambda m: -m["in"]))
+            delta[str(w)] = {"amt26": round(per_sett[w]["ricavi"], 2), "desc26": desc[:400]}
+        nuovo["deltaEdits"] = delta
         Path(a.out_json).write_text(json.dumps(
             {"schema": "bellavista-financial", "schemaVersion": 1,
              "exportedAt": datetime.datetime.now().isoformat(), "data": nuovo},
