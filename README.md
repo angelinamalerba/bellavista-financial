@@ -23,8 +23,38 @@ Apri `BELLAVISTA_App.html` direttamente nel browser. Nessuna installazione richi
 4. Clicca **Anteprima** poi **Importa**
 5. Le viste per settimana FRS e per categoria si aggiornano automaticamente
 
+### Backup e scambio dati (JSON)
+
+Dashboard → **💾 Backup completo (JSON)** scarica *tutti* i dati dell'app in un
+unico file: settimane, purchase orders, movimenti bancari, categorie, parametri
+FRS e modifiche al Delta. **📤 Ripristina / importa JSON** li ricarica.
+
+Serve per tre cose: il backup, lo spostamento dei dati su un altro computer e
+l'elaborazione automatica (vedi sotto). L'importazione **sostituisce** i dati
+esistenti e chiede conferma mostrando quante righe sta per caricare.
+
+## Chiusura settimanale automatica
+
+`.claude/skills/bellavista-weekly-close/` contiene uno skill per Claude che
+esegue la chiusura settimanale: legge l'estratto conto CSV di Banco BPM,
+assegna le categorie, calcola la distribuzione dei fondi FRS, riconcilia i
+pagamenti con i Purchase Orders aperti e produce un JSON pronto da importare.
+
+Il motore di calcolo è utilizzabile anche da solo, senza dipendenze esterne:
+
+```bash
+python3 .claude/skills/bellavista-weekly-close/scripts/frs.py fondi 152500
+python3 .claude/skills/bellavista-weekly-close/scripts/frs.py chiusura \
+  --estratto estratto.csv --stato backup.json --anno 2026 --out-json nuovo.json
+```
+
+Le regole di categorizzazione stanno in `assets/regole_categorie.json` e vanno
+estese man mano che compaiono nuovi fornitori.
+
 ## Struttura
 
 ```
 BELLAVISTA_App.html   — Applicazione completa (standalone HTML)
+.claude/skills/bellavista-weekly-close/
+                      — Skill per la chiusura settimanale (motore FRS + regole)
 ```

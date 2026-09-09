@@ -95,6 +95,13 @@
       <h2>Esportazione dati</h2>
       <button class="primary" onclick="exportAll()">⬇ Esporta tutti i dati in Excel (CSV)</button>
       <p class="small" style="margin-top:8px;">Scarica 3 file CSV (Distribuzione, Purchase Orders, Riconciliazione Banca) che si aprono direttamente in Excel.</p>
+      <hr style="margin:14px 0; border:none; border-top:1px solid #ddd;">
+      <button onclick="exportJSON()">💾 Backup completo (JSON)</button>
+      <input type="file" id="json_file" accept=".json,application/json" style="display:none" onchange="importJSON(this)">
+      <button onclick="document.getElementById('json_file').click()">📤 Ripristina / importa JSON</button>
+      <p class="small" style="margin-top:8px;">Il JSON contiene <b>tutti</b> i dati dell'app (settimane, PO, movimenti, categorie, parametri, delta).
+      Serve per il backup, per spostare i dati su un altro computer e per farli elaborare da un assistente esterno.
+      L'importazione <b>sostituisce</b> i dati attuali — fai prima un backup.</p>
     </div>
     <div class="card">
       <h2>Riepilogo Fondi (totale storico inserito)</h2>
@@ -776,6 +783,72 @@ function exportAll(){
   setTimeout(exportPO, 300);
   setTimeout(exportBanca, 600);
   setTimeout(exportCategorie, 900);
+}
+
+// ---------- BACKUP / SCAMBIO DATI (JSON) ----------
+const JSON_SCHEMA_VERSION = 1;
+
+function exportJSON(){
+  const payload = {
+    schema: 'bellavista-financial',
+    schemaVersion: JSON_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: DATA
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,10);
+  a.href = url; a.download = `Bellavista_Backup_${stamp}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importJSON(input){
+  const file = input.files && input.files[0];
+  input.value = '';
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    let incoming;
+    try {
+      incoming = JSON.parse(e.target.result);
+    } catch(err){
+      alert('❌ File non valido: non è un JSON leggibile.');
+      return;
+    }
+    // accept both the wrapped export and a bare data object
+    const d = (incoming && incoming.data) ? incoming.data : incoming;
+    if(!d || typeof d !== 'object' || !Array.isArray(d.weeks) || !Array.isArray(d.po) || !Array.isArray(d.bank)){
+      alert('❌ Struttura non riconosciuta: servono almeno i campi weeks, po e bank.');
+      return;
+    }
+    const summary = `Settimane: ${d.weeks.length}\nPurchase Orders: ${d.po.length}\nMovimenti banca: ${d.bank.length}`;
+    if(!confirm(`Sostituire TUTTI i dati attuali con quelli del file?\n\n${summary}\n\nL'operazione non è reversibile: fai prima un backup.`)) return;
+    DATA = {
+      weeks: d.weeks,
+      po: d.po,
+      bank: d.bank,
+      params: d.params || DEFAULT_PARAMS,
+      bankBalances: d.bankBalances || {conto:0, libro:0},
+      categorie: (Array.isArray(d.categorie) && d.categorie.length) ? d.categorie : DEFAULT_CATEGORIE.map(c=>({...c})),
+      deltaEdits: d.deltaEdits || {}
+    };
+    saveData();
+    refreshDropdowns();
+    renderDistribuzione();
+    renderPO();
+    document.getElementById('b_saldoConto').value = DATA.bankBalances.conto || '';
+    document.getElementById('b_saldoLibro').value = DATA.bankBalances.libro || '';
+    renderBanca();
+    renderCategorie();
+    renderParams();
+    renderDashboard();
+    renderDeltaDashboard();
+    alert('✅ Dati importati.\n\n' + summary);
+  };
+  reader.onerror = () => alert('❌ Impossibile leggere il file.');
+  reader.readAsText(file, 'utf-8');
 }
 
 // ---------- CATEGORIE SPESE ----------

@@ -1,0 +1,78 @@
+{
+  "_commento": "Правила автокатегоризации движений Banco BPM. Правила проверяются сверху вниз, побеждает первое совпадение — поэтому узкие правила держим выше широких. Сравнение регистронезависимое, по вхождению подстроки в описание. Когда скилл ошибается в категории — не спорьте с ним в чате, а добавьте сюда слово: это единственное место, где живёт знание о ваших контрагентах.",
+  "default": "Altro",
+  "regole": [
+    {
+      "categoria": "Storno / Rettifica",
+      "parole": ["storno", "rettifica", "reso", "annullamento", "riaccredito"]
+    },
+    {
+      "categoria": "Commissioni",
+      "parole": ["commissioni", "commissione", "spese tenuta conto", "canone conto", "imposta di bollo", "competenze"]
+    },
+    {
+      "categoria": "Tasse",
+      "parole": ["f24", "agenzia entrate", "erario", "iva trimestrale", "inps", "irpef", "ires", "irap", "tributi"]
+    },
+    {
+      "categoria": "Stipendi",
+      "parole": ["stipendio", "stipendi", "retribuzione", "cedolino", "busta paga", "compenso amministratore"]
+    },
+    {
+      "categoria": "Onorario Notaio",
+      "parole": ["notai", "notaio", "notarile", "milano notai"]
+    },
+    {
+      "categoria": "Onorario Professionista",
+      "parole": ["commercialista", "avvocato", "studio legale", "geometra", "architetto", "onorario", "parcella"]
+    },
+    {
+      "categoria": "Mediazione Immobiliare",
+      "parole": ["mediazione", "provvigione", "provvigioni", "intermediazione"]
+    },
+    {
+      "categoria": "Investimento Immobiliare",
+      "parole": ["acquisto immobile", "rogito", "caparra", "acconto immobile", "compravendita"]
+    },
+    {
+      "categoria": "Rimborso Cliente",
+      "parole": ["rimborso cliente", "restituzione caparra", "rimborso acconto"]
+    },
+    {
+      "categoria": "Finanziamento IC",
+      "parole": ["finanziamento", "versamento soci", "finanziamento soci", "infragruppo"]
+    },
+    {
+      "categoria": "Marketing",
+      "parole": ["pixartprinting", "google ads", "meta platforms", "facebook", "pubblicita", "advertising", "stampa"]
+    },
+    {
+      "categoria": "Software",
+      "parole": ["software", "licenza", "abbonamento", "subscription", "saas", "microsoft", "adobe", "aruba", "hosting", "dominio"]
+    },
+    {
+      "categoria": "Formazione Esterna",
+      "parole": ["corso", "formazione", "workshop", "master", "seminario"]
+    },
+    {
+      "categoria": "Consulenze",
+      "parole": ["consulenza", "consulting", "advisory"]
+    },
+    {
+      "categoria": "Spese Ufficio",
+      "parole": ["cancelleria", "utenze", "enel", "telecom", "tim ", "vodafone", "affitto ufficio", "locazione", "pulizie"]
+    },
+    {
+      "categoria": "Fattura Fornitore",
+      "parole": ["ns fattura fornitore", "pagamento fattura", "saldo fattura fornitore"]
+    },
+    {
+      "categoria": "Fattura Cliente",
+      "parole": ["fattura", "ft ", "vs fattura", "saldo prof", "acconto fattura"]
+    },
+    {
+      "categoria": "Saldo Commerciale",
+      "parole": ["saldo", "bonifico a vostro favore", "accredito bonifico"]
+    }
+  ]
+}
