@@ -1,0 +1,3 @@
+# cache dei moduli Python: si rigenera da sola a ogni esecuzione
+__pycache__/
+*.py[cod]
