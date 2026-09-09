@@ -120,6 +120,14 @@ nella causale, e per assegnare una categoria a tutti i movimenti filtrati in una
 volta. Serve soprattutto a svuotare «Altro»: la categoria assegnata all'import è
 un'ipotesi, e la Vista per Categoria vale quanto vale quell'ipotesi.
 
+Ogni riga ha una casella di selezione: si spuntano i movimenti (o si usa la
+casella in testata per prendere tutte le righe mostrate) e si assegna in blocco
+lo stato di riconciliazione. Il pulsante **Applica a tutti i filtrati** agisce
+invece sull'intero filtro, comprese le righe non visibili — utile quando il
+filtro seleziona più movimenti di quanti la tabella ne disegni. La selezione
+sopravvive al cambio di filtro, così si possono raccogliere movimenti da
+categorie diverse prima di applicare.
+
 Con estratti conto lunghi la tabella disegna le prime 400 righe; il filtro serve
 a restringere, mentre i totali e la riconciliazione restano calcolati su tutti i
 movimenti.

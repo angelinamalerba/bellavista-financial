@@ -383,9 +383,23 @@
           <button onclick="assegnaCategoriaFiltrati()">Applica</button></div>
         <div class="small" id="b_filtro_msg" style="margin-left:auto;"></div>
       </div>
+      <div style="display:flex; gap:8px; align-items:end; flex-wrap:wrap; margin-top:8px;
+                  background:#F2F7FF; border:1px solid #cfd9e8; border-radius:6px; padding:10px;">
+        <div><label style="font-size:11px;">Segna riconciliato come</label><br>
+          <select id="b_bulk_rec">
+            <option value="S">Sì</option><option value="N">No</option><option value="P">Parziale</option>
+          </select></div>
+        <div><button class="primary" onclick="applicaRiconciliazione('selezione')">✅ Applica ai selezionati</button></div>
+        <div><button onclick="applicaRiconciliazione('filtro')">Applica a tutti i filtrati</button></div>
+        <div><button onclick="deselezionaTutto()">✕ Deseleziona</button></div>
+        <div class="small" id="b_sel_msg" style="margin-left:auto;"></div>
+      </div>
       <div class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th>Data</th><th>Conto</th><th>Causale</th><th>Entrata</th><th>Uscita</th><th>Categoria</th><th>Riconc.</th><th></th></tr></thead>
+        <thead><tr>
+          <th style="width:28px;"><input type="checkbox" id="b_sel_tutti" onchange="selezionaVisibili(this.checked)" title="Seleziona le righe mostrate"></th>
+          <th>#</th><th>Data</th><th>Conto</th><th>Causale</th><th>Entrata</th><th>Uscita</th><th>Categoria</th><th>Riconc.</th><th></th>
+        </tr></thead>
         <tbody id="bankBody"></tbody>
         <tfoot id="bankFoot"></tfoot>
       </table>
@@ -847,7 +861,12 @@ function addBank(){
   ['b_desc','b_in','b_out'].forEach(id=>document.getElementById(id).value='');
   renderBanca();
 }
-function deleteBank(idx){ DATA.bank.splice(idx,1); saveData(); renderBanca(); }
+function deleteBank(idx){
+  SEL_BANCA.clear();   // dopo la cancellazione gli indici scalano: la selezione non è più valida
+  DATA.bank.splice(idx,1);
+  saveData();
+  renderBanca();
+}
 function setBankRec(idx, val){ DATA.bank[idx].rec = val; saveData(); renderBanca(); }
 
 // Quante righe si disegnano al massimo. Un estratto conto annuale supera gli
@@ -876,12 +895,20 @@ function renderBanca(){
   const visibili = movimentiFiltrati();
   const troncato = visibili.length > LIMITE_RIGHE_BANCA;
   const optBase = getCatOptions('banca');
-  const nomiCat = DATA.categorie.map(c=>c.name);
+  // Il menu offre le categorie di tipo «banca» o «entrambi», ma un movimento
+  // può già averne una riservata ai PO — «Fattura Fornitore» lo è. Senza
+  // aggiungerla il select non trova il proprio valore e appare vuoto, come se
+  // il movimento non fosse categorizzato.
+  const nomiOpzioni = DATA.categorie
+    .filter(c => c.type === 'entrambi' || c.type === 'banca')
+    .map(c => c.name);
 
   visibili.slice(0, LIMITE_RIGHE_BANCA).forEach(({m, idx})=>{
-    const extra = nomiCat.includes(m.cat) ? '' : `<option>${m.cat}</option>`;
+    const extra = (!m.cat || nomiOpzioni.includes(m.cat)) ? '' : `<option>${m.cat}</option>`;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${idx+1}</td><td>${m.date||''}</td>
+    tr.innerHTML = `<td><input type="checkbox" data-sel-idx="${idx}" ${SEL_BANCA.has(idx)?'checked':''}
+        onchange="toggleSelBanca(${idx}, this.checked)"></td>
+      <td>${idx+1}</td><td>${m.date||''}</td>
       <td class="small">${m.conto ? '…'+m.conto : ''}${m.gir ? ` <span class="badge annullato" title="movimento incrociato">${m.gir}</span>` : ''}</td>
       <td class="left">${m.desc}</td>
       <td>${m.in? eur(m.in):''}</td><td>${m.out? eur(m.out):''}</td>
@@ -903,8 +930,9 @@ function renderBanca(){
     : `<b>${visibili.length}</b> di ${DATA.bank.length} movimenti` +
       (troncato ? ` — mostrati i primi ${LIMITE_RIGHE_BANCA}, restringi il filtro per vederli tutti` : '');
 
+  aggiornaBarraSelezione();
   document.getElementById('bankFoot').innerHTML =
-    `<tr class="tot-row"><td colspan="4" class="left">TOTALI (su tutti i ${DATA.bank.length} movimenti)</td>
+    `<tr class="tot-row"><td colspan="5" class="left">TOTALI (su tutti i ${DATA.bank.length} movimenti)</td>
      <td>${eur(totIn)}</td><td>${eur(totOut)}</td>
      <td colspan="3">Non riconciliato: ${eur(nonRec)}</td></tr>`;
 
@@ -2019,6 +2047,71 @@ function exportDebitiDettaglio(){
     .slice().sort((a, b) => String(a.date).localeCompare(String(b.date)))
     .forEach(x => rows.push([r.cp, x.date || '', x.desc, numIT(x.in || 0), numIT(x.out || 0), x.cat, x.fonte])));
   downloadCSV('Bellavista_Debiti_Crediti_Dettaglio.csv', rows);
+}
+
+// ---------- SELEZIONE MULTIPLA DEI MOVIMENTI ----------
+// Riconciliare 895 movimenti uno alla volta non è lavoro, è battitura. La
+// selezione vive fuori dal disegno della tabella (in un Set di indici) perché
+// cambiare filtro ridisegna le righe: se le spunte stessero solo nel DOM,
+// filtrare per categoria, spuntare e poi cambiare filtro le perderebbe tutte.
+
+let SEL_BANCA = new Set();
+
+function toggleSelBanca(idx, checked){
+  if(checked) SEL_BANCA.add(idx); else SEL_BANCA.delete(idx);
+  aggiornaBarraSelezione();
+}
+
+function selezionaVisibili(checked){
+  document.querySelectorAll('#bankBody input[data-sel-idx]').forEach(cb => {
+    cb.checked = checked;
+    const i = parseInt(cb.dataset.selIdx, 10);
+    if(checked) SEL_BANCA.add(i); else SEL_BANCA.delete(i);
+  });
+  aggiornaBarraSelezione();
+}
+
+function deselezionaTutto(){
+  SEL_BANCA.clear();
+  document.querySelectorAll('#bankBody input[data-sel-idx]').forEach(cb => cb.checked = false);
+  const t = document.getElementById('b_sel_tutti');
+  if(t) t.checked = false;
+  aggiornaBarraSelezione();
+}
+
+function aggiornaBarraSelezione(){
+  const el = document.getElementById('b_sel_msg');
+  if(!el) return;
+  const n = SEL_BANCA.size;
+  const filtrati = movimentiFiltrati().length;
+  el.innerHTML = n
+    ? `<b>${n}</b> selezionati` + (n > document.querySelectorAll('#bankBody input[data-sel-idx]:checked').length
+        ? ' (alcuni fuori dalle righe mostrate)' : '')
+    : `nessuna riga selezionata — ${filtrati} movimenti nel filtro`;
+}
+
+// Applica lo stato di riconciliazione. `ambito` vale 'selezione' oppure
+// 'filtro': il secondo serve quando le righe filtrate superano quelle
+// disegnate e spuntarle a mano sarebbe impossibile.
+function applicaRiconciliazione(ambito){
+  const valore = document.getElementById('b_bulk_rec').value;
+  const etichetta = {S:'Sì', N:'No', P:'Parziale'}[valore];
+  let indici;
+  if(ambito === 'filtro'){
+    indici = movimentiFiltrati().map(x => x.idx);
+    if(indici.length === 0){ alert('Il filtro non seleziona nessun movimento.'); return; }
+    if(!confirm(`Segnare «Riconciliato: ${etichetta}» su tutti i ${indici.length} movimenti del filtro?\n\n` +
+                'Riguarda anche le righe non visibili a schermo.')) return;
+  } else {
+    indici = [...SEL_BANCA];
+    if(indici.length === 0){ alert('Non hai selezionato nessuna riga.'); return; }
+    if(indici.length > 20 &&
+       !confirm(`Segnare «Riconciliato: ${etichetta}» su ${indici.length} movimenti selezionati?`)) return;
+  }
+  indici.forEach(i => { if(DATA.bank[i]) DATA.bank[i].rec = valore; });
+  saveData();
+  deselezionaTutto();
+  renderBanca();
 }
 
 // ---------- CORREZIONE DELLE CATEGORIE ----------
