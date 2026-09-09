@@ -1615,7 +1615,11 @@ const REGOLE_FORZATE = [
   {cat: 'Mediazione Immobiliare', parole: ['lucia rovelli']},
   {cat: 'Consulenze', parole: ['liubov petelina']},
   {cat: 'Sanzioni', parole: ['ministero dell', 'antiriciclaggio']},
-  {cat: 'Rappresentanza', parole: ['rotary club', 'confcommercio']}
+  {cat: 'Rappresentanza', parole: ['rotary club', 'confcommercio']},
+  // Shell Mobility è la carta carburante aziendale, ma passa come addebito
+  // diretto e la banca la marca «Utenze - Acqua, luce e gas»: senza questa
+  // regola i rifornimenti finiscono fra le spese d'ufficio.
+  {cat: 'Auto e Trasferte', parole: ['shell mobility']}
 ];
 
 // Usate quando la banca non ha messo nessuna categoria. L'ordine conta: vince
