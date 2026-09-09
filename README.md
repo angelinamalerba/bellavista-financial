@@ -62,6 +62,27 @@ CSV. Il nome della controparte viene estratto dalla causale, che nell'estratto
 Banco BPM è l'unico posto in cui compare. Si possono registrare anche movimenti
 che non passano dal conto (compensazioni, accolli, note di credito).
 
+## Movimenti incrociati
+
+Un giroconto fra due conti della società compare due volte nell'estratto: uscita
+di qua, entrata di là. Un bonifico arrivato per errore e restituito identico fa
+lo stesso. Finché restano scollegati gonfiano insieme il fatturato e la posizione
+debitoria.
+
+Il pulsante **🔗 Incrocia movimenti** (Riconciliazione Banca) li abbina e li
+segna come riconciliati; l'abbinamento parte già da solo dopo l'import. Le due
+gambe finiscono nelle categorie «Giroconto Interno» o «Partita di Giro», che non
+contano né come ricavo né come debito.
+
+Le condizioni sono strette apposta, perché due operazioni vere possono avere lo
+stesso importo per caso: per un giroconto servono conti diversi, importo uguale
+al centesimo e pochi giorni di distanza; per una partita di giro l'importo
+identico più la parola «storno» o la stessa controparte su entrambe le righe.
+
+Perché funzioni, in fase di import va mappata anche la colonna **Conto /
+Rapporto**: le ultime quattro cifre compaiono poi accanto a ogni movimento,
+insieme all'ID della coppia.
+
 ## Correggere le categorie dei movimenti
 
 Nella scheda Riconciliazione Banca la categoria di ogni movimento è ora un menu

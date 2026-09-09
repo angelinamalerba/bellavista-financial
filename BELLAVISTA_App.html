@@ -317,6 +317,7 @@
           <div><label>Uscita / Addebito (€)</label><select id="map_out"></select></div>
           <div><label>Importo unico (±)</label><select id="map_amt"></select></div>
           <div><label>Categoria / Sottocategoria</label><select id="map_cat"></select></div>
+          <div><label>Conto / Rapporto</label><select id="map_conto"></select></div>
           <div><button class="primary" onclick="previewCSV()">👁 Anteprima</button></div>
         </div>
         <p class="small" style="margin-top:6px;">Se la tua banca usa un solo campo Importo (positivo = entrata, negativo = uscita), selezionalo in «Importo unico» e lascia vuoti Entrata/Uscita.</p>
@@ -384,7 +385,7 @@
       </div>
       <div class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th>Data</th><th>Causale</th><th>Entrata</th><th>Uscita</th><th>Categoria</th><th>Riconc.</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Data</th><th>Conto</th><th>Causale</th><th>Entrata</th><th>Uscita</th><th>Categoria</th><th>Riconc.</th><th></th></tr></thead>
         <tbody id="bankBody"></tbody>
         <tfoot id="bankFoot"></tfoot>
       </table>
@@ -405,6 +406,25 @@
           <tbody id="bankWeekBody"></tbody>
         </table>
         </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🔗 Movimenti incrociati — giroconti e partite di giro</h2>
+      <p class="small">Un giroconto fra due conti della società compare due volte: uscita di qua, entrata di là.
+      Un bonifico arrivato per errore e restituito identico fa lo stesso. Finché restano scollegati gonfiano
+      insieme il fatturato e la posizione debitoria; incrociati si azzerano e vengono segnati come riconciliati.
+      Perché due movimenti si abbinino servono importo uguale al centesimo e, per i giroconti, conti diversi a
+      pochi giorni di distanza; per le partite di giro la parola «storno» o la stessa controparte.</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <button class="primary" onclick="incrociaOra()">🔗 Incrocia movimenti</button>
+      </div>
+      <div class="table-wrap">
+      <table id="incrTable">
+        <thead><tr><th>ID</th><th>Tipo</th><th>Uscita</th><th>Entrata</th><th>Importo</th><th class="left">Causale</th></tr></thead>
+        <tbody id="incrBody"></tbody>
+        <tfoot id="incrFoot"></tfoot>
+      </table>
       </div>
     </div>
 
@@ -625,6 +645,8 @@ const DEFAULT_CATEGORIE = [
   {name:'Spese Ufficio', type:'entrambi'},
   {name:'Formazione Esterna', type:'entrambi'},
   {name:'Consulenze', type:'entrambi'},
+  {name:'Giroconto Interno', type:'banca'},
+  {name:'Partita di Giro', type:'banca'},
   {name:'Altro', type:'entrambi'}
 ];
 
@@ -851,7 +873,9 @@ function renderBanca(){
   visibili.slice(0, LIMITE_RIGHE_BANCA).forEach(({m, idx})=>{
     const extra = nomiCat.includes(m.cat) ? '' : `<option>${m.cat}</option>`;
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${idx+1}</td><td>${m.date||''}</td><td class="left">${m.desc}</td>
+    tr.innerHTML = `<td>${idx+1}</td><td>${m.date||''}</td>
+      <td class="small">${m.conto ? '…'+m.conto : ''}${m.gir ? ` <span class="badge annullato" title="movimento incrociato">${m.gir}</span>` : ''}</td>
+      <td class="left">${m.desc}</td>
       <td>${m.in? eur(m.in):''}</td><td>${m.out? eur(m.out):''}</td>
       <td><select data-cat-idx="${idx}" onchange="setBankCat(${idx}, this.value)">${extra}${optBase}</select></td>
       <td><select onchange="setBankRec(${idx}, this.value)">
@@ -871,7 +895,7 @@ function renderBanca(){
       (troncato ? ` — mostrati i primi ${LIMITE_RIGHE_BANCA}, restringi il filtro per vederli tutti` : '');
 
   document.getElementById('bankFoot').innerHTML =
-    `<tr class="tot-row"><td colspan="3" class="left">TOTALI (su tutti i ${DATA.bank.length} movimenti)</td>
+    `<tr class="tot-row"><td colspan="4" class="left">TOTALI (su tutti i ${DATA.bank.length} movimenti)</td>
      <td>${eur(totIn)}</td><td>${eur(totOut)}</td>
      <td colspan="3">Non riconciliato: ${eur(nonRec)}</td></tr>`;
 
@@ -885,6 +909,7 @@ function renderBanca(){
 
   renderBankWeekly();
   renderBankCategorie();
+  renderIncroci();
   renderDebiti();
 }
 
@@ -1510,6 +1535,105 @@ function modelloPO(){
   ]);
 }
 
+// ---------- INCROCIO DEI MOVIMENTI ----------
+// Alcuni movimenti non sono né entrate né uscite vere: sono la stessa somma che
+// si sposta. Un giroconto fra due conti della società compare due volte, come
+// uscita di qua e entrata di là; un bonifico arrivato per errore e restituito
+// identico fa lo stesso. Lasciati scollegati gonfiano insieme il fatturato e la
+// posizione debitoria. Incrociarli li azzera e li toglie di mezzo.
+
+function ultimeCifre(rapporto, n){
+  const cifre = String(rapporto || '').replace(/\D/g, '');
+  n = n || 4;
+  return cifre.length >= n ? cifre.slice(-n) : cifre;
+}
+
+const SEGNALI_STORNO = ['storno','rettifica','restituzione','rimborso','bonifico errat','errato'];
+const giorniTra = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
+
+function incrociaMovimenti(){
+  DATA.bank.forEach(m => { delete m.gir; });
+
+  const interno = m => {
+    const d = (m.desc || '').toLowerCase();
+    return d.includes('como lake estate') || d.includes('giroconto') || d.includes('giriconto');
+  };
+
+  // 1) giroconti: conti DIVERSI, stesso importo, pochi giorni. Le tre condizioni
+  //    servono insieme: da sole legherebbero fra loro pagamenti veri coincidenti.
+  let nGir = 0;
+  const usate = new Set();
+  DATA.bank.filter(m => m.out > 0 && interno(m)).forEach(u => {
+    const e = DATA.bank.find(x => !usate.has(x) && x.in > 0 && interno(x) &&
+      x.conto && u.conto && x.conto !== u.conto &&
+      Math.abs(x.in - u.out) < 0.01 && Math.abs(giorniTra(u.date, x.date)) <= 3);
+    if(!e) return;
+    usate.add(e);
+    const id = 'G' + String(++nGir).padStart(3, '0');
+    [u, e].forEach(m => { m.gir = id; m.cat = 'Giroconto Interno'; m.rec = 'S'; });
+  });
+
+  // 2) partite di giro: accredito e storno di pari importo. Qui l'importo uguale
+  //    non basta come prova, perché due operazioni vere possono coincidere:
+  //    serve la parola "storno" oppure la stessa controparte su entrambe.
+  let nPar = 0;
+  const usate2 = new Set();
+  DATA.bank.filter(m => m.in > 0 && !m.gir).forEach(e => {
+    const u = DATA.bank.find(x => !usate2.has(x) && !x.gir && x.out > 0 &&
+      Math.abs(x.out - e.in) < 0.01 && giorniTra(e.date, x.date) >= 0 && giorniTra(e.date, x.date) <= 120 &&
+      (() => {
+        const testo = ((e.desc || '') + ' ' + (x.desc || '')).toLowerCase();
+        const stessoCp = !!e.cp && (e.cp || '').toLowerCase() === (x.cp || '').toLowerCase();
+        if(!testo.includes('storno') && !stessoCp) return false;
+        return SEGNALI_STORNO.some(sig => testo.includes(sig)) || stessoCp;
+      })());
+    if(!u) return;
+    usate2.add(u);
+    const id = 'P' + String(++nPar).padStart(3, '0');
+    [e, u].forEach(m => { m.gir = id; m.cat = 'Partita di Giro'; m.rec = 'S'; });
+  });
+
+  return {giroconti: nGir, partite: nPar};
+}
+
+function incrociaOra(){
+  const e = incrociaMovimenti();
+  saveData();
+  renderBanca();
+  alert(`Incrociati ${e.giroconti} giroconti fra conti e ${e.partite} partite di giro.\n\n` +
+        'I movimenti abbinati sono marcati come riconciliati e non contano più né come ricavo né come debito.');
+}
+
+function renderIncroci(){
+  const body = document.getElementById('incrBody');
+  if(!body) return;
+  const gruppi = {};
+  DATA.bank.forEach((m, idx) => { if(m.gir) (gruppi[m.gir] = gruppi[m.gir] || []).push({...m, idx}); });
+  const chiavi = Object.keys(gruppi).sort();
+  body.innerHTML = chiavi.length ? '' :
+    `<tr><td colspan="6" style="text-align:center;color:#999;">
+       Nessun movimento incrociato. Usa «Incrocia movimenti» dopo aver importato l'estratto conto.</td></tr>`;
+  let totale = 0;
+  chiavi.forEach(k => {
+    const g = gruppi[k];
+    const entrata = g.find(m => m.in > 0), uscita = g.find(m => m.out > 0);
+    const importo = entrata ? entrata.in : (uscita ? uscita.out : 0);
+    totale += importo;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td><b>${k}</b></td>
+       <td>${k[0] === 'G' ? 'Giroconto fra conti' : 'Partita di giro'}</td>
+       <td>${uscita ? `${uscita.date} · …${uscita.conto || '?'}` : '—'}</td>
+       <td>${entrata ? `${entrata.date} · …${entrata.conto || '?'}` : '—'}</td>
+       <td>${eur(importo)}</td>
+       <td class="left small">${(entrata || uscita).desc.slice(0, 70)}</td>`;
+    body.appendChild(tr);
+  });
+  document.getElementById('incrFoot').innerHTML = chiavi.length ?
+    `<tr class="tot-row"><td colspan="4" class="left">TOTALE incrociato (${chiavi.length} coppie)</td>
+     <td>${eur(totale)}</td><td></td></tr>` : '';
+}
+
 // ---------- CONTROPARTI ----------
 // Il nome di chi ha mandato o ricevuto i soldi non è un campo dell'estratto
 // conto: sta dentro la causale, in una manciata di formati fissi di Banco BPM.
@@ -1563,11 +1687,25 @@ function setCatNatura(idx, v){
 
 // ---------- REGISTRO DEBITI / CREDITI ----------
 
+// «CBV INTERIOR GALLERY S.R.L.» e «CBV INTERIOR GALLERY SRL» sono la stessa
+// società: senza normalizzare la forma societaria la stessa controparte si
+// sdoppia e il suo saldo sembra aperto quando invece è chiuso.
+function chiaveControparte(nome){
+  let n = String(nome || '').toLowerCase()
+    .replace(/\bs\s*\.?\s*r\s*\.?\s*l\s*\.?\b/g, 'srl')
+    .replace(/\bs\s*\.?\s*p\s*\.?\s*a\s*\.?\b/g, 'spa')
+    .replace(/\bs\s*\.?\s*a\s*\.?\b/g, 'sa')
+    .replace(/\bs\s*\.?\s*n\s*\.?\s*c\s*\.?\b/g, 'snc');
+  return n.replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+}
+
 function righeDebiti(){
   const per = {};
   const aggiungi = (cp, natura, ricevuto, restituito, riga) => {
-    const k = cp || '(controparte non riconosciuta)';
-    const r = per[k] || (per[k] = {cp: k, natura, ricevuto: 0, restituito: 0, n: 0, righe: []});
+    const nome = cp || '(controparte non riconosciuta)';
+    const k = chiaveControparte(nome) || nome;
+    const r = per[k] || (per[k] = {cp: nome, natura, ricevuto: 0, restituito: 0, n: 0, righe: []});
+    if(nome.length > r.cp.length) r.cp = nome;
     r.ricevuto += ricevuto;
     r.restituito += restituito;
     r.n++;
@@ -1898,7 +2036,7 @@ function onCSVLoad(){
     // populate column selectors
     const none = '<option value="">— nessuna —</option>';
     const opts = CSV_HEADERS.map((h,i)=>`<option value="${i}">${h}</option>`).join('');
-    ['map_date','map_desc','map_in','map_out','map_amt','map_cat'].forEach(id=>{
+    ['map_date','map_desc','map_in','map_out','map_amt','map_cat','map_conto'].forEach(id=>{
       document.getElementById(id).innerHTML = none + opts;
     });
 
@@ -1909,7 +2047,8 @@ function onCSVLoad(){
       map_in:   ['accredito','entrata','avere','credito','accr','in','accrediti'],
       map_out:  ['addebito','uscita','dare','debito','addebit','out','addebiti'],
       map_amt:  ['importo','amount','saldo mov','valore','mov','imponibile'],
-      map_cat:  ['categoria/sottocategoria','categoria','sottocategoria','category','tipo']
+      map_cat:  ['categoria/sottocategoria','categoria','sottocategoria','category','tipo'],
+      map_conto:['rapporto','conto','iban','numero conto']
     };
     Object.entries(autoMap).forEach(([selId, keywords])=>{
       const sel = document.getElementById(selId);
@@ -1960,6 +2099,7 @@ function previewCSV(){
   const iOut   = document.getElementById('map_out').value;
   const iAmt   = document.getElementById('map_amt').value;
   const iCat   = document.getElementById('map_cat').value;
+  const iConto = document.getElementById('map_conto').value;
 
   if(iDate==='' || iDesc===''){
     alert('Seleziona almeno le colonne Data e Descrizione.');
@@ -1978,7 +2118,8 @@ function previewCSV(){
       ein  = iIn  !== '' ? (parseAmt(row[iIn],  dec) || 0) : 0;
       eout = iOut !== '' ? (parseAmt(row[iOut], dec) || 0) : 0;
     }
-    return {date, desc, cat, in: ein, out: eout, rawRow: row};
+    const conto = iConto !== '' ? ultimeCifre(row[iConto]) : '';
+    return {date, desc, cat, conto, in: ein, out: eout, rawRow: row};
   }).filter(r => r.desc || r.in || r.out);
 
   // match against existing DATA.bank
@@ -2052,10 +2193,11 @@ function importCSVRows(){
       date: r.date, desc: r.desc,
       in: r.in, out: r.out,
       cat: r.cat || defaultCat, rec: 'N',
-      cp: controparte(r.desc)
+      cp: controparte(r.desc), conto: r.conto || ''
     });
   });
   DATA.bank.sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  const esito = incrociaMovimenti();
   saveData();
   renderBanca();
 
@@ -2064,7 +2206,9 @@ function importCSVRows(){
   document.getElementById('csv_map_wrap').style.display = 'none';
   document.getElementById('csv_preview_wrap').style.display = 'none';
   CSV_ROWS = []; CSV_HEADERS = [];
-  alert(`✅ ${checked.length} movimenti importati. Controlla la categoria e la riconciliazione nella tabella sottostante.`);
+  alert(`✅ ${checked.length} movimenti importati.\n\n` +
+        `Incrociati automaticamente: ${esito.giroconti} giroconti fra conti e ${esito.partite} partite di giro.\n\n` +
+        'Controlla la categoria e la riconciliazione nella tabella sottostante.');
 }
 
 function renderBankWeekly(){

@@ -89,7 +89,9 @@ CATEGORIE_DEFAULT = [
     ("Finanziamento IC", "banca", "debito"), ("Stipendi", "banca", ""),
     ("Tasse", "banca", ""), ("Software", "entrambi", ""), ("Marketing", "entrambi", ""),
     ("Spese Ufficio", "entrambi", ""), ("Formazione Esterna", "entrambi", ""),
-    ("Consulenze", "entrambi", ""), ("Altro", "entrambi", ""),
+    ("Consulenze", "entrambi", ""), ("Giroconto Interno", "banca", ""),
+    ("Partita di Giro", "banca", ""),
+    ("Altro", "entrambi", ""),
 ]
 
 
@@ -263,6 +265,7 @@ SINONIMI = {
     "entrata": ["entrate", "entrata", "avere", "accrediti", "accredito"],
     "uscita": ["uscite", "uscita", "dare", "addebiti", "addebito"],
     "cat": ["categoria", "sottocategoria", "categoria/sottocategoria"],
+    "conto": ["rapporto", "conto", "iban", "numero conto"],
 }
 
 
@@ -286,6 +289,101 @@ def mappa_colonne(headers):
                 if campo in mapping:
                     break
     return mapping
+
+
+def ultime_cifre(rapporto, n=4):
+    """«51050 - 426000002368» → «2368». Le ultime cifre bastano a distinguere
+    i conti e sono l'unica parte che si legge a colpo d'occhio in una tabella."""
+    cifre = re.sub(r"\D", "", str(rapporto or ""))
+    return cifre[-n:] if len(cifre) >= n else cifre
+
+
+def abbina_giroconti(mov, giorni=3):
+    """Accoppia le due gambe di un giroconto fra conti della stessa società.
+
+    Un giroconto compare due volte: come uscita su un conto e come entrata
+    sull'altro. Finché restano scollegati sembrano un debito verso sé stessi e
+    la stessa somma risulta sia entrata sia uscita. Accoppiandoli si azzerano a
+    vicenda e sparisce un debito che non esiste.
+
+    Si abbinano solo movimenti su conti DIVERSI, di importo identico e a pochi
+    giorni di distanza: senza queste tre condizioni insieme si rischia di legare
+    fra loro pagamenti veri che per caso hanno lo stesso importo.
+    """
+    interni = [m for m in mov if _norm("como lake estate") in _norm(m["desc"])
+               or "giroconto" in _norm(m["desc"]) or "giriconto" in _norm(m["desc"])]
+    uscite = [m for m in interni if m["out"] > 0]
+    entrate = [m for m in interni if m["in"] > 0]
+    usate = set()
+    coppie = []
+    for u in sorted(uscite, key=lambda m: m["date"]):
+        du = datetime.date.fromisoformat(u["date"])
+        for e in sorted(entrate, key=lambda m: m["date"]):
+            if id(e) in usate:
+                continue
+            if e["conto"] == u["conto"] or not e["conto"] or not u["conto"]:
+                continue
+            if abs(e["in"] - u["out"]) > 0.01:
+                continue
+            if abs((datetime.date.fromisoformat(e["date"]) - du).days) > giorni:
+                continue
+            usate.add(id(e))
+            coppie.append({"uscita": u, "entrata": e, "importo": u["out"]})
+            u["gir"] = e["gir"] = f"G{len(coppie):03d}"
+            u["cat"] = e["cat"] = "Giroconto Interno"
+            u["fonte_cat"] = e["fonte_cat"] = f"giroconto abbinato {u['conto']}→{e['conto']}"
+            u["rec"] = e["rec"] = "S"
+            break
+    spaiati = [m for m in interni if not m.get("gir")]
+    return coppie, spaiati
+
+
+SEGNALI_STORNO = ("storno", "rettifica", "restituzione", "rimborso", "bonifico errat", "errato")
+
+
+def abbina_partite_giro(mov, giorni=120):
+    """Accoppia un accredito con lo storno che lo restituisce.
+
+    Capita che arrivi un bonifico non dovuto e che venga rimandato indietro
+    identico: le due righe non sono né un ricavo né un debito, sono la stessa
+    somma che entra ed esce. Lasciate scollegate gonfiano sia il fatturato sia
+    la posizione debitoria.
+
+    Per evitare di accoppiare per sbaglio due operazioni vere che hanno lo
+    stesso importo si chiedono tre condizioni insieme: importo uguale al
+    centesimo, almeno una delle due righe che parla esplicitamente di storno o
+    restituzione, e una distanza di pochi mesi.
+    """
+    liberi = [m for m in mov if not m.get("gir")]
+    entrate = [m for m in liberi if m["in"] > 0]
+    uscite = [m for m in liberi if m["out"] > 0]
+    usate = set()
+    coppie = []
+    for e in sorted(entrate, key=lambda m: m["date"]):
+        de = datetime.date.fromisoformat(e["date"])
+        for u in sorted(uscite, key=lambda m: m["date"]):
+            if id(u) in usate or abs(u["out"] - e["in"]) > 0.01:
+                continue
+            giorni_diff = (datetime.date.fromisoformat(u["date"]) - de).days
+            if giorni_diff < 0 or giorni_diff > giorni:
+                continue
+            # Solo l'importo uguale non basta: due operazioni vere possono
+            # coincidere per caso. Serve una prova del legame — o la parola
+            # "storno" in una delle due righe, o la stessa controparte.
+            testo = _norm(e["desc"]) + " " + _norm(u["desc"])
+            stesso_cp = bool(e["cp"]) and _norm(e["cp"]) == _norm(u["cp"])
+            if "storno" not in testo and not stesso_cp:
+                continue
+            if not any(sig in testo for sig in SEGNALI_STORNO) and not stesso_cp:
+                continue
+            usate.add(id(u))
+            coppie.append({"entrata": e, "uscita": u, "importo": e["in"], "giorni": giorni_diff})
+            e["gir"] = u["gir"] = f"P{len(coppie):03d}"
+            e["cat"] = u["cat"] = "Partita di Giro"
+            e["fonte_cat"] = u["fonte_cat"] = f"partita di giro: entrata e storno di pari importo a {giorni_diff} giorni"
+            e["rec"] = u["rec"] = "S"
+            break
+    return coppie
 
 
 def leggi_estratto(percorso, regole=None, anno=None):
@@ -359,13 +457,17 @@ def leggi_estratto(percorso, regole=None, anno=None):
             "cat": cat,
             "cat_banca": cat_file,
             "cp": controparte(desc),
+            "conto": ultime_cifre(cell("conto")),
             "fonte_cat": fonte,
             "settimana": settimana_di(data, anno),
             "rec": "N",
         })
 
     movimenti.sort(key=lambda m: m["date"])
-    return movimenti, {"separatore": sep, "colonne": mapping, "righe_scartate": len(scartate)}
+    coppie, spaiati = abbina_giroconti(movimenti)
+    partite = abbina_partite_giro(movimenti)
+    return movimenti, {"separatore": sep, "colonne": mapping, "righe_scartate": len(scartate),
+                       "giroconti": coppie, "giroconti_spaiati": spaiati, "partite_giro": partite}
 
 
 # --------------------------------------------------------- классификация
@@ -398,6 +500,22 @@ def traduci_categoria_banca(cat_banca, descrizione, regole=None):
         return tradotta, f"банк: {cat_banca}"
     cat, fonte = classifica(descrizione, regole)
     return cat, f"{fonte} (банк: {cat_banca} — нет в mappa_banca)"
+
+
+def chiave_controparte(nome):
+    """Ключ для группировки контрагентов.
+
+    «CBV INTERIOR GALLERY S.R.L.» и «CBV INTERIOR GALLERY SRL» — одна компания,
+    но в выписке она пишется по-разному. Без нормализации организационной формы
+    один и тот же контрагент разъезжается на две строки реестра, и сальдо по
+    нему выглядит открытым, хотя оно закрыто.
+    """
+    n = _norm(nome)
+    n = re.sub(r"\bs\s*\.?\s*r\s*\.?\s*l\s*\.?\b", "srl", n)
+    n = re.sub(r"\bs\s*\.?\s*p\s*\.?\s*a\s*\.?\b", "spa", n)
+    n = re.sub(r"\bs\s*\.?\s*a\s*\.?\b", "sa", n)
+    n = re.sub(r"\bs\s*\.?\s*n\s*\.?\s*c\s*\.?\b", "snc", n)
+    return re.sub(r"[^a-z0-9 ]", "", n).strip()
 
 
 def e_ricavo(mov, regole=None):
@@ -612,7 +730,8 @@ def cmd_chiusura(a):
     if a.out_json:
         nuovo = dict(stato)
         nuovo["bank"] = list(stato.get("bank", [])) + [
-            {k: m[k] for k in ("date", "desc", "in", "out", "cat", "rec", "cp")} for m in del_sett
+            {**{k: m[k] for k in ("date", "desc", "in", "out", "cat", "rec", "cp", "conto")},
+             **({"gir": m["gir"]} if m.get("gir") else {})} for m in del_sett
         ]
         if entrate:
             nuovo["weeks"] = list(stato.get("weeks", [])) + [
@@ -695,8 +814,27 @@ def cmd_periodo(a):
     out += ["", "## 4. Distribuzione FRS sui ricavi del periodo", "",
             f"Ricavi: **{eur(tot_ricavi)}**", "", stampa_fondi(calc)]
 
+    gir = meta.get("giroconti", [])
+    par = meta.get("partite_giro", [])
+    if gir or par:
+        out += ["", "## 5. Movimenti incrociati (si annullano a vicenda)", ""]
+    if gir:
+        out += [f"**Giroconti fra i conti della società: {len(gir)} coppie, "
+                f"{eur(sum(g['importo'] for g in gir))}**", "",
+                "| ID | Data | Da conto | A conto | Importo | Causale |", "|---|---|---|---|---|---|"]
+        for g in gir:
+            out.append(f"| {g['uscita']['gir']} | {g['uscita']['date']} | ...{g['uscita']['conto']} | "
+                       f"...{g['entrata']['conto']} | {eur(g['importo'])} | {g['entrata']['desc'][:48]} |")
+    if par:
+        out += ["", f"**Partite di giro (accredito e storno di pari importo): {len(par)}, "
+                    f"{eur(sum(p['importo'] for p in par))}**", "",
+                "| ID | Entrata | Storno | Giorni | Importo | Causale |", "|---|---|---|---|---|---|"]
+        for p in par:
+            out.append(f"| {p['entrata']['gir']} | {p['entrata']['date']} | {p['uscita']['date']} | "
+                       f"{p['giorni']} | {eur(p['importo'])} | {p['entrata']['desc'][:48]} |")
+
     senza = [m for m in mov if "нет в mappa_banca" in m["fonte_cat"] or m["fonte_cat"] == "не распознано"]
-    out += ["", "## 5. Da rivedere", ""]
+    out += ["", "## 6. Da rivedere", ""]
     if senza:
         out.append(f"{len(senza)} movimenti senza traduzione certa della categoria:")
         out.append("")
@@ -729,7 +867,8 @@ def cmd_periodo(a):
                                            "deltaEdits": {}, "debiti": []}
         nuovo["categorie"] = categorie_app(stato)
         nuovo.setdefault("debiti", [])
-        nuovo["bank"] = [{k: m[k] for k in ("date", "desc", "in", "out", "cat", "rec", "cp")} for m in mov]
+        nuovo["bank"] = [{**{k: m[k] for k in ("date", "desc", "in", "out", "cat", "rec", "cp", "conto")},
+                          **({"gir": m["gir"]} if m.get("gir") else {})} for m in mov]
         nuovo["weeks"] = [{"date": cal[w]["start"].isoformat(), "amount": round(per_sett[w]["ricavi"], 2)}
                           for w in sorted(k for k in per_sett if k in cal and per_sett[k]["ricavi"] > 0)]
         Path(a.out_json).write_text(json.dumps(
@@ -753,13 +892,16 @@ def cmd_debiti(a):
         if m["cat"] not in cat_debito:
             continue
         cp = m["cp"] or "(controparte non riconosciuta)"
-        r = per.setdefault(cp, {"ricevuto": 0.0, "restituito": 0.0, "n": 0, "righe": []})
+        k = chiave_controparte(cp) or cp
+        r = per.setdefault(k, {"nome": cp, "ricevuto": 0.0, "restituito": 0.0, "n": 0, "righe": []})
+        if len(cp) > len(r["nome"]):   # si tiene la forma più completa del nome
+            r["nome"] = cp
         r["ricevuto"] += m["in"]
         r["restituito"] += m["out"]
         r["n"] += 1
         r["righe"].append(m)
 
-    righe = sorted(((cp, v) for cp, v in per.items()),
+    righe = sorted(((v["nome"], v) for v in per.values()),
                    key=lambda x: -abs(x[1]["ricevuto"] - x[1]["restituito"]))
     tot_deb = sum(max(0.0, v["ricevuto"] - v["restituito"]) for _, v in righe)
     tot_cre = sum(max(0.0, v["restituito"] - v["ricevuto"]) for _, v in righe)
