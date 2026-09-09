@@ -644,6 +644,7 @@ const DEFAULT_CATEGORIE = [
   {name:'Software', type:'entrambi'},
   {name:'Marketing', type:'entrambi'},
   {name:'Spese Ufficio', type:'entrambi'},
+  {name:'Spese Condominiali', type:'entrambi'},
   {name:'Formazione Esterna', type:'entrambi'},
   {name:'Consulenze', type:'entrambi'},
   {name:'Assicurazioni', type:'entrambi'},
@@ -1570,7 +1571,7 @@ const MAPPA_BANCA = {
   'Servizi - Spese per servizi online': 'Software',
   'Servizi - Spese per professionisti': 'Onorario Professionista',
   'Servizi - Spese per manutenzione': 'Spese Ufficio',
-  'Servizi - Spese condominiali': 'Spese Ufficio',
+  'Servizi - Spese condominiali': 'Spese Condominiali',
   'Servizi - Spese Marketing e Pubblicita': 'Marketing',
   'Servizi - Spese per Quote Associative': 'Rappresentanza',
   'Servizi - Generico': 'Altro',
@@ -1620,9 +1621,10 @@ const REGOLE_FORZATE = [
   // diretto e la banca la marca «Utenze - Acqua, luce e gas»: senza questa
   // regola i rifornimenti finiscono fra le spese d'ufficio.
   {cat: 'Auto e Trasferte', parole: ['shell mobility']},
-  // Le spese condominiali ci arrivano già tramite la categoria della banca:
-  // la regola esplicita serve a non dipendere da come la banca le etichetta.
-  {cat: 'Spese Ufficio', parole: ['condominio', 'spese condominiali']}
+  // Le spese condominiali hanno una categoria propria: riguardano un immobile,
+  // non le spese correnti dell'ufficio, e da sole pesavano il 70% di Spese
+  // Ufficio nascondendo utenze e manutenzioni.
+  {cat: 'Spese Condominiali', parole: ['condominio', 'spese condominiali']}
 ];
 
 // Usate quando la banca non ha messo nessuna categoria. L'ordine conta: vince
