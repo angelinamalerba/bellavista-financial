@@ -23,6 +23,31 @@ Apri `BELLAVISTA_App.html` direttamente nel browser. Nessuna installazione richi
 4. Clicca **Anteprima** poi **Importa**
 5. Le viste per settimana FRS e per categoria si aggiornano automaticamente
 
+### Import Purchase Orders da Excel
+
+**Purchase Orders** → riquadro **📥 Importa Purchase Orders da Excel / CSV**.
+Accetta `.xlsx` e `.csv`; il vecchio `.xls` va prima salvato in uno dei due.
+
+1. Carica il file — se il foglio di lavoro ne contiene più di uno, scegli quale
+2. Le colonne si mappano da sole dal nome dell'intestazione; le righe di titolo
+   sopra le intestazioni vengono saltate
+3. **👁 Anteprima** — segnala righe incomplete, categorie non presenti in
+   Categorie Spese, stati non riconosciuti e ordini già a registro
+4. **✅ Importa ordini selezionati**
+
+Servono almeno **Fornitore** e **Importo**: senza, la riga non è un ordine e
+resta bloccata. «Seleziona tutte le nuove» esclude di proposito i duplicati, e
+importarne uno a mano richiede una conferma esplicita — un ordine doppio è un
+rischio di pagamento doppio.
+
+Le date arrivano corrette sia come date Excel sia come testo `gg/mm/aaaa`, e gli
+importi sia in formato italiano (`1.850,00`) sia inglese. Il pulsante **⬇ Scarica
+modello CSV** produce un file con le intestazioni giuste già pronte.
+
+Il lettore `.xlsx` è scritto nell'app stessa (uno `.xlsx` è uno ZIP di XML e il
+browser sa già decomprimere): nessuna libreria esterna, nessuna connessione,
+funziona offline come il resto dell'applicazione.
+
 ### Backup e scambio dati (JSON)
 
 Dashboard → **💾 Backup completo (JSON)** scarica *tutti* i dati dell'app in un

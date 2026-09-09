@@ -200,6 +200,60 @@
       </div>
     </div>
     <div class="card">
+      <h2>📥 Importa Purchase Orders da Excel / CSV</h2>
+      <p class="small">Carica un file <b>.xlsx</b> o <b>.csv</b> con gli ordini: le colonne vengono riconosciute dal nome
+      e l'anteprima segnala righe incomplete e possibili duplicati prima di scrivere qualsiasi cosa.
+      Servono almeno <b>Fornitore</b> e <b>Importo</b>; le altre colonne si completano poi nel registro.</p>
+      <div class="form-grid" style="align-items:end; margin-bottom:12px;">
+        <div style="grid-column:span 2;">
+          <label>File ordini (.xlsx / .csv)</label>
+          <input type="file" id="po_file" accept=".xlsx,.csv,.txt" onchange="onPOFile()" style="padding:5px;">
+        </div>
+        <div id="po_sheet_wrap" style="display:none;">
+          <label>Foglio del file</label>
+          <select id="po_sheet" onchange="onPOSheet()"></select>
+        </div>
+        <div><button onclick="modelloPO()">⬇ Scarica modello CSV</button></div>
+      </div>
+      <p class="small" id="po_import_msg" style="margin:0 0 10px 0;"></p>
+
+      <div id="po_map_wrap" style="display:none; background:#f8f8f8; border:1px solid #ddd; border-radius:6px; padding:14px; margin-bottom:12px;">
+        <b style="font-size:13px; color:var(--navy);">Mappa le colonne del tuo file:</b>
+        <div class="form-grid" style="margin-top:10px;">
+          <div><label>Data richiesta</label><select id="po_map_date"></select></div>
+          <div><label>Fornitore</label><select id="po_map_supplier"></select></div>
+          <div><label>Descrizione</label><select id="po_map_desc"></select></div>
+          <div><label>Importo (€)</label><select id="po_map_amount"></select></div>
+          <div><label>Categoria / Fondo</label><select id="po_map_cat"></select></div>
+          <div><label>Richiedente</label><select id="po_map_req"></select></div>
+          <div><label>Approvatore</label><select id="po_map_app"></select></div>
+          <div><label>Status</label><select id="po_map_status"></select></div>
+          <div><label>Note / N° Fattura</label><select id="po_map_note"></select></div>
+          <div><button class="primary" onclick="previewPO()">👁 Anteprima</button></div>
+        </div>
+      </div>
+
+      <div id="po_preview_wrap" style="display:none;">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+          <button class="primary" onclick="importPORows()">✅ Importa ordini selezionati</button>
+          <label style="display:flex; align-items:center; gap:4px; font-size:12px; font-weight:normal;">
+            <input type="checkbox" id="po_sel_all" onchange="toggleAllPO(this.checked)"> Seleziona tutte le nuove
+          </label>
+          <span id="po_count_msg" class="small"></span>
+        </div>
+        <div class="table-wrap">
+        <table id="po_preview_table">
+          <thead><tr>
+            <th>✓</th><th>Stato</th><th>Data</th><th>Fornitore</th><th>Descrizione</th>
+            <th>Importo</th><th>Categoria</th><th>Status</th><th>Segnalazioni</th>
+          </tr></thead>
+          <tbody id="po_preview_body"></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Registro Ordini</h2>
       <button class="primary" onclick="exportPO()">⬇ Esporta in Excel (CSV)</button>
       <div class="table-wrap">
@@ -932,6 +986,428 @@ function importJSON(input){
   };
   reader.onerror = () => alert('❌ Impossibile leggere il file.');
   reader.readAsText(file, 'utf-8');
+}
+
+// ---------- LETTURA FOGLI DI CALCOLO (.xlsx / .csv) ----------
+// Un .xlsx è uno ZIP di file XML e il browser sa già decomprimere
+// (DecompressionStream), quindi non serve nessuna libreria esterna: l'app
+// resta un unico file che funziona anche offline, senza installare niente.
+
+let PO_FOGLI = [];      // fogli disponibili nel file caricato
+let PO_HEADERS = [];
+let PO_ROWS = [];
+let PO_ORIGINE = 'csv'; // 'xlsx' oppure 'csv': cambia come si leggono i numeri
+
+async function inflateRaw(dati){
+  if(typeof DecompressionStream === 'undefined')
+    throw new Error('Questo browser non sa aprire i file .xlsx. Salva il foglio come CSV e ricaricalo.');
+  const stream = new Blob([dati]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function unzip(buffer){
+  const dv = new DataView(buffer), u8 = new Uint8Array(buffer);
+  let eocd = -1;                       // End Of Central Directory, in fondo al file
+  for(let i = u8.length - 22; i >= 0 && i > u8.length - 66000; i--){
+    if(dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+  }
+  if(eocd < 0) throw new Error('Il file non è un .xlsx valido.');
+  const nVoci = dv.getUint16(eocd + 10, true);
+  let off = dv.getUint32(eocd + 16, true);
+  const files = {};
+  for(let n = 0; n < nVoci; n++){
+    if(dv.getUint32(off, true) !== 0x02014b50) break;
+    const metodo    = dv.getUint16(off + 10, true);
+    const compressa = dv.getUint32(off + 20, true);
+    const lenNome   = dv.getUint16(off + 28, true);
+    const lenExtra  = dv.getUint16(off + 30, true);
+    const lenComm   = dv.getUint16(off + 32, true);
+    const offLocale = dv.getUint32(off + 42, true);
+    const nome = new TextDecoder().decode(u8.subarray(off + 46, off + 46 + lenNome));
+    // nome ed extra hanno lunghezze proprie nell'header locale, non sono le stesse
+    const lnNome  = dv.getUint16(offLocale + 26, true);
+    const lnExtra = dv.getUint16(offLocale + 28, true);
+    const inizio  = offLocale + 30 + lnNome + lnExtra;
+    const dati = u8.subarray(inizio, inizio + compressa);
+    files[nome] = metodo === 0 ? dati : await inflateRaw(dati);
+    off += 46 + lenNome + lenExtra + lenComm;
+  }
+  return files;
+}
+
+function colonnaDaRif(rif){          // "B7" → 1
+  const m = /^([A-Z]+)/.exec(rif || '');
+  if(!m) return 0;
+  let n = 0;
+  for(const ch of m[1]) n = n * 26 + (ch.charCodeAt(0) - 64);
+  return n - 1;
+}
+
+// Excel conta i giorni dal 31/12/1899 e include il 29/02/1900, che non è mai
+// esistito: dal seriale 60 in poi va tolto un giorno per tornare alla data vera.
+function dataDaSeriale(n, base1904){
+  const giorni = base1904 ? Math.floor(n) : Math.floor(n) - (n > 59 ? 1 : 0);
+  const d = new Date(Date.UTC(base1904 ? 1904 : 1899, base1904 ? 0 : 11, base1904 ? 1 : 31));
+  d.setUTCDate(d.getUTCDate() + giorni);
+  return d.toISOString().slice(0, 10);
+}
+
+async function leggiXLSX(buffer){
+  const f = await unzip(buffer);
+  const testo = u8 => new TextDecoder('utf-8').decode(u8);
+  const xml = nome => f[nome] ? new DOMParser().parseFromString(testo(f[nome]), 'application/xml') : null;
+
+  const ss = xml('xl/sharedStrings.xml');
+  const stringhe = ss ? [...ss.getElementsByTagName('si')].map(si =>
+    [...si.getElementsByTagName('t')].map(t => t.textContent).join('')) : [];
+
+  // quali stili di cella rappresentano una data: serve per non trasformare
+  // un importo in una data e viceversa
+  const st = xml('xl/styles.xml');
+  const stiliData = new Set();
+  if(st){
+    const custom = {};
+    [...st.getElementsByTagName('numFmt')].forEach(n =>
+      custom[n.getAttribute('numFmtId')] = n.getAttribute('formatCode') || '');
+    const xfs = st.getElementsByTagName('cellXfs')[0];
+    if(xfs) [...xfs.getElementsByTagName('xf')].forEach((xf, i) => {
+      const id = xf.getAttribute('numFmtId') || '0';
+      const n = parseInt(id, 10);
+      const codice = (custom[id] || '').replace(/\[[^\]]*\]/g, '').replace(/"[^"]*"/g, '');
+      if((n >= 14 && n <= 22) || (n >= 45 && n <= 47) || /[dmy]/i.test(codice)) stiliData.add(i);
+    });
+  }
+
+  const wb = xml('xl/workbook.xml');
+  const base1904 = !!wb && [...wb.getElementsByTagName('workbookPr')]
+    .some(p => p.getAttribute('date1904') === '1' || p.getAttribute('date1904') === 'true');
+
+  const rels = xml('xl/_rels/workbook.xml.rels');
+  const target = {};
+  if(rels) [...rels.getElementsByTagName('Relationship')].forEach(r =>
+    target[r.getAttribute('Id')] = r.getAttribute('Target'));
+
+  const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  const fogli = wb ? [...wb.getElementsByTagName('sheet')].map(s => {
+    const rid = s.getAttributeNS(NS_R, 'id') || s.getAttribute('r:id');
+    let t = target[rid] || '';
+    if(t.startsWith('/')) t = t.slice(1);
+    else if(!t.startsWith('xl/')) t = 'xl/' + t;
+    return { nome: s.getAttribute('name') || 'Foglio', file: t };
+  }).filter(s => f[s.file]) : [];
+  if(fogli.length === 0) throw new Error('Nel file non ci sono fogli leggibili.');
+
+  fogli.forEach(foglio => {
+    const doc = xml(foglio.file);
+    const righe = [];
+    [...doc.getElementsByTagName('row')].forEach(row => {
+      const celle = [];
+      [...row.getElementsByTagName('c')].forEach(c => {
+        const col = colonnaDaRif(c.getAttribute('r'));
+        const t = c.getAttribute('t'), s = c.getAttribute('s');
+        let v = '';
+        if(t === 'inlineStr'){
+          v = [...c.getElementsByTagName('t')].map(x => x.textContent).join('');
+        } else {
+          const vEl = c.getElementsByTagName('v')[0];
+          const raw = vEl ? vEl.textContent : '';
+          if(t === 's')      v = stringhe[parseInt(raw, 10)] ?? '';
+          else if(t === 'b') v = raw === '1' ? 'VERO' : 'FALSO';
+          else if(raw === '') v = '';
+          else if(s !== null && stiliData.has(parseInt(s, 10)) && raw !== '' && !isNaN(raw))
+            v = dataDaSeriale(parseFloat(raw), base1904);
+          else v = raw;
+        }
+        celle[col] = v == null ? '' : String(v).trim();
+      });
+      righe.push(celle);
+    });
+    const larghezza = righe.reduce((m, r) => Math.max(m, r.length), 0);
+    foglio.righe = righe
+      .map(r => Array.from({length: larghezza}, (_, i) => r[i] ?? ''))
+      .filter(r => r.some(c => c !== ''));
+  });
+  return fogli;
+}
+
+// Il separatore si riconosce contandolo nella riga di intestazione: è l'unico
+// modo affidabile, perché il nome delle colonne non dice nulla su come sono divise.
+function separatoreCSV(prima){
+  const candidati = [';', ',', '\t', '|'];
+  const conteggi = candidati.map(c => (prima.split(c).length - 1));
+  const max = Math.max(...conteggi);
+  return max > 0 ? candidati[conteggi.indexOf(max)] : ';';
+}
+
+function righeCSV(testo){
+  const linee = testo.replace(/^﻿/, '').split(/\r?\n/).filter(l => l.trim() !== '');
+  if(linee.length === 0) return [];
+  const sep = separatoreCSV(linee[0]);
+  const dividi = linea => {
+    const celle = []; let cur = '', inQ = false;
+    for(let i = 0; i < linea.length; i++){
+      const c = linea[i];
+      if(c === '"'){
+        if(inQ && linea[i + 1] === '"'){ cur += '"'; i++; }
+        else inQ = !inQ;
+      }
+      else if(c === sep && !inQ){ celle.push(cur.trim()); cur = ''; }
+      else cur += c;
+    }
+    celle.push(cur.trim());
+    return celle;
+  };
+  return linee.map(dividi);
+}
+
+// ---------- IMPORTAZIONE PURCHASE ORDERS ----------
+
+const PO_CAMPI = [
+  ['po_map_date',     'Data richiesta',   ['data richiesta','data ordine','data','date']],
+  ['po_map_supplier', 'Fornitore',        ['fornitore','supplier','ragione sociale','beneficiario','venditore']],
+  ['po_map_desc',     'Descrizione',      ['descrizione','oggetto','causale','articolo','desc']],
+  ['po_map_amount',   'Importo (€)',      ['importo','totale','amount','imponibile','costo','prezzo','valore']],
+  ['po_map_cat',      'Categoria / Fondo',['categoria','fondo','category','conto']],
+  ['po_map_req',      'Richiedente',      ['richiedente','richiesto da','requester']],
+  ['po_map_app',      'Approvatore',      ['approvatore','approvato da','approver']],
+  ['po_map_status',   'Status',           ['status','stato']],
+  ['po_map_note',     'Note / N° Fattura',['note','n° fattura','n. fattura','numero fattura','fattura','riferimento','rif']]
+];
+
+const PO_STATI = {
+  'attesa':'attesa', 'in attesa':'attesa', 'da approvare':'attesa', 'pending':'attesa',
+  'approvato':'approvato', 'approvata':'approvato', 'approved':'approvato', 'ok':'approvato',
+  'pagato':'pagato', 'pagata':'pagato', 'paid':'pagato', 'saldato':'pagato',
+  'rifiutato':'rifiutato', 'rifiutata':'rifiutato', 'rejected':'rifiutato',
+  'annullato':'annullato', 'annullata':'annullato', 'cancelled':'annullato', 'canceled':'annullato'
+};
+
+function numeroFoglio(v, origine){
+  if(v === null || v === undefined) return NaN;
+  let s = String(v).trim();
+  if(!s) return NaN;
+  const negativo = s.startsWith('(') && s.endsWith(')');
+  s = s.replace(/[()]/g, '').replace(/[^\d,.\-+]/g, '');   // via €, EUR, spazi
+  if(!s) return NaN;
+  // dall'xlsx il numero arriva già con il punto decimale; nel CSV va interpretato
+  if(origine === 'csv'){
+    if(s.includes(',') && s.includes('.')) s = s.lastIndexOf(',') > s.lastIndexOf('.')
+      ? s.replace(/\./g, '').replace(',', '.')
+      : s.replace(/,/g, '');
+    else if(s.includes(',')) s = s.replace(',', '.');
+    else if(/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); // 3.150 = tremilacentocinquanta
+  }
+  const n = parseFloat(s);
+  return isNaN(n) ? NaN : (negativo ? -n : n);
+}
+
+function dataFoglio(v){
+  const s = String(v || '').trim();
+  if(!s) return '';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/.exec(s);
+  if(m){
+    let [, g, me, a] = m;
+    if(a.length === 2) a = (parseInt(a, 10) > 70 ? '19' : '20') + a;
+    return `${a}-${me.padStart(2,'0')}-${g.padStart(2,'0')}`;
+  }
+  if(/^\d+(\.\d+)?$/.test(s)){                 // seriale Excel arrivato come testo
+    const n = parseFloat(s);
+    if(n > 20000 && n < 80000) return dataDaSeriale(n, false);
+  }
+  return '';
+}
+
+async function onPOFile(){
+  const file = document.getElementById('po_file').files[0];
+  const msg = document.getElementById('po_import_msg');
+  msg.textContent = '';
+  if(!file) return;
+  const selFoglio = document.getElementById('po_sheet_wrap');
+  try {
+    if(/\.xlsx$/i.test(file.name)){
+      PO_FOGLI = await leggiXLSX(await file.arrayBuffer());
+      PO_ORIGINE = 'xlsx';
+      const sel = document.getElementById('po_sheet');
+      sel.innerHTML = PO_FOGLI.map((f, i) => `<option value="${i}">${f.nome}</option>`).join('');
+      selFoglio.style.display = PO_FOGLI.length > 1 ? '' : 'none';
+    } else if(/\.xls$/i.test(file.name)){
+      throw new Error('Il formato .xls (Excel 97-2003) non è leggibile. Apri il file in Excel e salvalo come .xlsx oppure come CSV.');
+    } else {
+      const testo = await file.text();
+      PO_FOGLI = [{ nome: file.name, righe: righeCSV(testo) }];
+      PO_ORIGINE = 'csv';
+      selFoglio.style.display = 'none';
+    }
+    onPOSheet();
+  } catch(err){
+    document.getElementById('po_map_wrap').style.display = 'none';
+    document.getElementById('po_preview_wrap').style.display = 'none';
+    msg.style.color = 'var(--red)';
+    msg.textContent = '❌ ' + err.message;
+  }
+}
+
+function onPOSheet(){
+  const idx = parseInt(document.getElementById('po_sheet').value || '0', 10);
+  const foglio = PO_FOGLI[idx] || PO_FOGLI[0];
+  const msg = document.getElementById('po_import_msg');
+  const righe = (foglio && foglio.righe) || [];
+  if(righe.length < 2){
+    document.getElementById('po_map_wrap').style.display = 'none';
+    msg.style.color = 'var(--red)';
+    msg.textContent = '❌ Il foglio non contiene righe da importare (servono le intestazioni e almeno un ordine).';
+    return;
+  }
+
+  // La riga di intestazione non è per forza la prima: nei file esportati capita
+  // che sopra ci siano titoli o note. Si cerca la prima riga che contiene una
+  // colonna riconoscibile come fornitore o importo.
+  const riconosce = riga => riga.some(c => {
+    const h = String(c).toLowerCase();
+    return PO_CAMPI.some(([id,, parole]) =>
+      (id === 'po_map_supplier' || id === 'po_map_amount') && parole.some(p => h.includes(p)));
+  });
+  let iHead = righe.findIndex(riconosce);
+  if(iHead < 0) iHead = 0;
+
+  PO_HEADERS = righe[iHead].map((h, i) => String(h || '').trim() || `Colonna ${i + 1}`);
+  PO_ROWS = righe.slice(iHead + 1);
+
+  const none = '<option value="">— nessuna —</option>';
+  const opts = PO_HEADERS.map((h, i) => `<option value="${i}">${h}</option>`).join('');
+  PO_CAMPI.forEach(([id,, parole]) => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = none + opts;
+    const trovato = PO_HEADERS.findIndex(h => parole.some(p => h.toLowerCase().includes(p)));
+    if(trovato >= 0) sel.value = String(trovato);
+  });
+
+  msg.style.color = '#555';
+  msg.textContent = `Lette ${PO_ROWS.length} righe dal foglio «${foglio.nome}»` +
+    (iHead > 0 ? ` (intestazioni trovate alla riga ${iHead + 1}).` : '.');
+  document.getElementById('po_map_wrap').style.display = 'block';
+  document.getElementById('po_preview_wrap').style.display = 'none';
+}
+
+function previewPO(){
+  const idx = id => {
+    const v = document.getElementById(id).value;
+    return v === '' ? -1 : parseInt(v, 10);
+  };
+  const iSup = idx('po_map_supplier'), iAmt = idx('po_map_amount');
+  if(iSup < 0 || iAmt < 0){
+    alert('Servono almeno le colonne Fornitore e Importo: senza di quelle un ordine non è identificabile.');
+    return;
+  }
+  const cella = (r, i) => (i >= 0 && i < r.length) ? r[i] : '';
+  const nomiCat = DATA.categorie.map(c => c.name);
+
+  const parsate = PO_ROWS.map(r => {
+    const supplier = String(cella(r, iSup)).trim();
+    const amount = numeroFoglio(cella(r, iAmt), PO_ORIGINE);
+    const date = dataFoglio(cella(r, idx('po_map_date')));
+    const catFile = String(cella(r, idx('po_map_cat'))).trim();
+    const cat = nomiCat.find(n => n.toLowerCase() === catFile.toLowerCase()) || catFile || 'Altro';
+    const statoFile = String(cella(r, idx('po_map_status'))).trim().toLowerCase();
+    const status = PO_STATI[statoFile] || 'attesa';
+
+    const problemi = [];
+    if(!supplier) problemi.push('fornitore mancante');
+    if(isNaN(amount)) problemi.push('importo illeggibile');
+    if(!date && idx('po_map_date') >= 0) problemi.push('data illeggibile');
+    if(catFile && !nomiCat.some(n => n.toLowerCase() === catFile.toLowerCase()))
+      problemi.push(`categoria «${catFile}» non presente in Categorie Spese`);
+    if(statoFile && !PO_STATI[statoFile]) problemi.push(`stato «${statoFile}» non riconosciuto → In attesa`);
+
+    const duplicato = DATA.po.some(o =>
+      String(o.supplier || '').trim().toLowerCase() === supplier.toLowerCase() &&
+      Math.abs((o.amount || 0) - amount) < 0.01 &&
+      (!date || !o.date || o.date === date));
+
+    return {
+      ordine: { date, supplier, desc: String(cella(r, idx('po_map_desc'))).trim(), amount,
+                cat, req: String(cella(r, idx('po_map_req'))).trim(),
+                app: String(cella(r, idx('po_map_app'))).trim(),
+                status, note: String(cella(r, idx('po_map_note'))).trim() },
+      problemi, duplicato,
+      bloccante: !supplier || isNaN(amount)
+    };
+  });
+
+  const body = document.getElementById('po_preview_body');
+  body.innerHTML = '';
+  body._parsed = parsate;
+  parsate.forEach((p, i) => {
+    const o = p.ordine;
+    const stato = p.bloccante
+      ? '<span class="badge rifiutato">Da correggere</span>'
+      : p.duplicato ? '<span class="badge attesa">Duplicato</span>'
+      : '<span class="badge pagato">Nuovo</span>';
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td><input type="checkbox" class="po-row-cb" data-idx="${i}" ${(p.bloccante || p.duplicato) ? '' : 'checked'} ${p.bloccante ? 'disabled' : ''}></td>
+       <td>${stato}</td><td>${o.date || '—'}</td><td class="left">${o.supplier || '—'}</td>
+       <td class="left">${o.desc || ''}</td><td>${isNaN(o.amount) ? '—' : eur(o.amount)}</td>
+       <td>${o.cat}</td><td>${statusLabel[o.status]}</td>
+       <td class="left small">${p.problemi.join(' · ') || ''}</td>`;
+    body.appendChild(tr);
+  });
+
+  const nuovi = parsate.filter(p => !p.bloccante && !p.duplicato).length;
+  const dup = parsate.filter(p => p.duplicato && !p.bloccante).length;
+  const ko = parsate.filter(p => p.bloccante).length;
+  document.getElementById('po_count_msg').innerHTML =
+    `${parsate.length} righe · <b>${nuovi} nuove</b> · ${dup} possibili duplicati` +
+    (ko ? ` · <span style="color:var(--red)">${ko} da correggere nel file</span>` : '');
+  document.getElementById('po_sel_all').checked = false;
+  document.getElementById('po_preview_wrap').style.display = 'block';
+}
+
+// Seleziona solo le righe nuove: un duplicato ricompreso da un "seleziona tutto"
+// diventa un ordine doppio, cioè un rischio di pagare due volte. Chi vuole
+// importarlo lo spunta a mano, e l'importazione chiede comunque conferma.
+function toggleAllPO(checked){
+  const parsate = document.getElementById('po_preview_body')._parsed || [];
+  document.querySelectorAll('.po-row-cb:not(:disabled)').forEach(cb => {
+    const p = parsate[parseInt(cb.dataset.idx, 10)];
+    cb.checked = checked && !(p && p.duplicato);
+  });
+}
+
+function importPORows(){
+  const body = document.getElementById('po_preview_body');
+  if(!body._parsed){ alert('Prima esegui l\'anteprima.'); return; }
+  const scelte = [...document.querySelectorAll('.po-row-cb:checked')].map(cb => parseInt(cb.dataset.idx, 10));
+  if(scelte.length === 0){ alert('Nessuna riga selezionata.'); return; }
+
+  const doppi = scelte.filter(i => body._parsed[i].duplicato);
+  if(doppi.length && !confirm(
+      `Attenzione: ${doppi.length} ordine/i risultano già presenti nel registro.\n\n` +
+      doppi.map(i => `• ${body._parsed[i].ordine.supplier} — ${eur(body._parsed[i].ordine.amount)}`).join('\n') +
+      '\n\nImportandoli avrai due volte lo stesso ordine. Procedere comunque?')) return;
+
+  scelte.forEach(i => DATA.po.push({...body._parsed[i].ordine}));
+  DATA.po.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  saveData();
+  renderPO();
+  renderDashboard();
+
+  document.getElementById('po_file').value = '';
+  document.getElementById('po_map_wrap').style.display = 'none';
+  document.getElementById('po_preview_wrap').style.display = 'none';
+  document.getElementById('po_sheet_wrap').style.display = 'none';
+  PO_FOGLI = []; PO_HEADERS = []; PO_ROWS = [];
+  const msg = document.getElementById('po_import_msg');
+  msg.style.color = 'var(--green)';
+  msg.textContent = `✅ ${scelte.length} ordini importati. Controllali nel Registro Ordini qui sotto.`;
+}
+
+function modelloPO(){
+  downloadCSV('Bellavista_Modello_Purchase_Orders.csv', [
+    ['Data richiesta','Fornitore','Descrizione','Importo','Categoria','Richiedente','Approvatore','Status','Note'],
+    ['2026-02-03','ACME LOGISTICA SRL','Trasporto arredi','3150,00','Fattura Fornitore','AM - Angelina','SB - Silvia','approvato','Fattura 88/2026']
+  ]);
 }
 
 // ---------- CATEGORIE SPESE ----------
