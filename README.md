@@ -112,6 +112,24 @@ Trasferte** e **Sanzioni**. Senza di quelle un quarto dei movimenti finiva in
 Se si modifica una regola va aggiornata in entrambi i posti, altrimenti importare
 il CSV nell'app e farlo elaborare allo skill darebbe risultati diversi.
 
+## Ricostruire le settimane dai ricavi in banca
+
+La distribuzione settimanale si compilava a mano rileggendo l'estratto conto, ma
+gli incassi sono già nei movimenti. **📥 Ricostruisci le settimane dai ricavi in
+banca** (scheda Distribuzione Settimanale) li raggruppa per settimana FRS,
+mostra in anteprima quali settimane cambiano e da quali clienti arrivano, e
+compila insieme la distribuzione e la scheda Delta 2025/2026.
+
+Contano solo le categorie con natura **Ricavo** — impostabile in Categorie Spese,
+di serie Fattura Cliente, Mediazione Immobiliare e Saldo Commerciale. È la
+distinzione che regge tutto: sul conto arrivano anche giroconti fra i conti
+della società, finanziamenti soci e storni, e distribuirli nei fondi FRS
+gonfierebbe i fondi con denaro mai guadagnato. Sull'estratto 2026 la differenza
+è fra 849.818 euro entrati e 542.640 di fatturato vero.
+
+L'anteprima avvisa se ci sono settimane inserite a mano senza riscontro in banca,
+elencandole prima di sostituirle.
+
 ## Regole apprese dalle correzioni
 
 Le regole scritte a mano coprono quello che si sapeva quando sono state scritte,

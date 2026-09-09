@@ -150,6 +150,28 @@
       </div>
     </div>
     <div class="card">
+      <h2>📥 Ricostruisci le settimane dai ricavi in banca</h2>
+      <p class="small">Gli incassi sono già nei movimenti bancari: qui vengono raggruppati per settimana FRS
+      e diventano la distribuzione settimanale, senza ridigitare niente. Contano solo le categorie con
+      natura <b>Ricavo</b> (impostabile in Categorie Spese): giroconti fra i conti della società,
+      finanziamenti soci e storni arrivano sullo stesso conto ma non sono fatturato, e distribuirli
+      gonfierebbe i fondi con denaro mai guadagnato.</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+        <button class="primary" onclick="anteprimaSettimane()">👁 Anteprima</button>
+        <span class="small" id="genSettMsg" style="margin-left:auto;"></span>
+      </div>
+      <div id="genSettWrap" style="display:none;">
+        <button class="primary" onclick="generaSettimane()" style="margin-bottom:10px;">✅ Ricostruisci le settimane</button>
+        <div class="table-wrap">
+        <table id="genSettTable">
+          <thead><tr><th>Sett.</th><th>Periodo</th><th>Ricavi</th><th>Stato</th><th class="left">Da chi</th></tr></thead>
+          <tbody id="genSettBody"></tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <h2>Distribuzione Fondi</h2>
       <button class="primary" onclick="exportDistribuzione()">⬇ Esporta in Excel (CSV)</button>
       <div class="table-wrap">
@@ -1915,7 +1937,12 @@ function controparte(desc){
 // rapporto di debito o credito. I giroconti infragruppo e i finanziamenti soci
 // entrano sul conto ma vanno restituiti: contarli solo come "entrata" nasconde
 // che quei soldi sono dovuti a qualcuno.
-const NATURA_DEFAULT = { 'Finanziamento IC': 'debito' };
+const NATURA_DEFAULT = {
+  'Finanziamento IC': 'debito',
+  // Solo questi incassi sono fatturato: il resto che arriva sul conto
+  // (giroconti, finanziamenti soci, storni) non va distribuito nei fondi FRS.
+  'Fattura Cliente': 'ricavo', 'Mediazione Immobiliare': 'ricavo', 'Saldo Commerciale': 'ricavo'
+};
 
 function naturaDi(nomeCat){
   const c = DATA.categorie.find(x => x.name === nomeCat);
@@ -1962,7 +1989,7 @@ function righeDebiti(){
 
   DATA.bank.forEach((m, idx) => {
     const natura = naturaDi(m.cat);
-    if(!natura) return;
+    if(natura !== 'debito' && natura !== 'credito') return;   // «ricavo» non è una posizione aperta
     aggiungi(m.cp || controparte(m.desc), natura, m.in || 0, m.out || 0,
              {date: m.date, desc: m.desc, in: m.in, out: m.out, cat: m.cat, fonte: 'banca', idx});
   });
@@ -2078,6 +2105,108 @@ function exportDebitiDettaglio(){
     .slice().sort((a, b) => String(a.date).localeCompare(String(b.date)))
     .forEach(x => rows.push([r.cp, x.date || '', x.desc, numIT(x.in || 0), numIT(x.out || 0), x.cat, x.fonte])));
   downloadCSV('Bellavista_Debiti_Crediti_Dettaglio.csv', rows);
+}
+
+// ---------- SETTIMANE FRS DAI RICAVI IN BANCA ----------
+// La distribuzione settimanale si compilava a mano, riga per riga, rileggendo
+// l'estratto conto. Ma i ricavi sono già nei movimenti: basta sapere quali
+// incassi sono fatturato e in quale settimana FRS cadono.
+//
+// La distinzione è tutto: sul conto arrivano anche giroconti fra i conti della
+// società, finanziamenti soci e storni. Distribuirli nei fondi FRS gonfierebbe
+// i fondi con denaro mai guadagnato. Contano solo le categorie con natura
+// «ricavo», impostabile in Categorie Spese.
+
+function categorieRicavo(){
+  const dai = DATA.categorie.filter(c => c.natura === 'ricavo').map(c => c.name);
+  if(dai.length) return dai;
+  return Object.entries(NATURA_DEFAULT).filter(([, v]) => v === 'ricavo').map(([k]) => k);
+}
+
+function ricaviPerSettimana(){
+  const cat = new Set(categorieRicavo());
+  const per = {};
+  DATA.bank.forEach(m => {
+    if(!(m.in > 0) || m.gir || !cat.has(m.cat)) return;
+    const r = settimanaFRS(m.date);
+    if(!r) return;
+    const s = per[r.w] || (per[r.w] = {w: r.w, start: r.start, end: r.end, tot: 0, voci: []});
+    s.tot += m.in;
+    s.voci.push(m);
+  });
+  return Object.values(per).sort((a, b) => a.w - b.w);
+}
+
+function anteprimaSettimane(){
+  const righe = ricaviPerSettimana();
+  const body = document.getElementById('genSettBody');
+  body.innerHTML = '';
+  if(righe.length === 0){
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#999;">
+      Nessun incasso classificato come ricavo. Controlla che le categorie di fatturato abbiano
+      natura «Ricavo» in Categorie Spese, e che i movimenti in entrata siano categorizzati.</td></tr>`;
+    document.getElementById('genSettMsg').textContent = '';
+    document.getElementById('genSettWrap').style.display = 'block';
+    return;
+  }
+  righe.forEach(r => {
+    const gia = DATA.weeks.find(w => w.date === iso(r.start));
+    const stato = !gia ? '<span class="badge pagato">Nuova</span>'
+      : Math.abs(gia.amount - r.tot) < 0.01 ? '<span class="badge annullato">Invariata</span>'
+      : `<span class="badge attesa">Cambia da ${eur(gia.amount)}</span>`;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td><b>W${r.w}</b></td>
+       <td class="small">${ddmm(r.start)} – ${ddmm(r.end)}</td>
+       <td>${eur(r.tot)}</td>
+       <td>${stato}</td>
+       <td class="left small">${r.voci.sort((a,b)=>b.in-a.in)
+          .map(m => `${m.cp || 'senza controparte'} (${eur(m.in)})`).join(' · ')}</td>`;
+    body.appendChild(tr);
+  });
+  const tot = righe.reduce((s, r) => s + r.tot, 0);
+  const orfane = DATA.weeks.filter(w => !righe.some(r => iso(r.start) === w.date));
+  document.getElementById('genSettMsg').innerHTML =
+    `${righe.length} settimane con ricavi · totale <b>${eur(tot)}</b>` +
+    (orfane.length ? ` · <span style="color:var(--red)">${orfane.length} settimane inserite a mano non trovano `
+      + 'riscontro in banca e verrebbero rimosse</span>' : '');
+  document.getElementById('genSettWrap').style.display = 'block';
+}
+
+const iso = d => d.toISOString().slice(0,10);
+const ddmm = d => String(d.getDate()).padStart(2,'0') + '.' + String(d.getMonth()+1).padStart(2,'0');
+
+function generaSettimane(){
+  const righe = ricaviPerSettimana();
+  if(righe.length === 0){ alert('Nessun incasso classificato come ricavo.'); return; }
+  const orfane = DATA.weeks.filter(w => !righe.some(r => iso(r.start) === w.date));
+  const tot = righe.reduce((s, r) => s + r.tot, 0);
+  if(!confirm(`Ricostruire la distribuzione settimanale dai ricavi in banca?\n\n` +
+              `${righe.length} settimane, ${eur(tot)} di fatturato.\n` +
+              `Sostituisce le ${DATA.weeks.length} settimane attuali.` +
+              (orfane.length ? `\n\n⚠️ ${orfane.length} settimane inserite a mano non hanno riscontro in banca ` +
+                `e andranno perse:\n` + orfane.slice(0,6).map(w => `• ${w.date}: ${eur(w.amount)}`).join('\n') : ''))) return;
+
+  DATA.weeks = righe.map(r => ({date: iso(r.start), amount: Math.round(r.tot * 100) / 100}));
+
+  // La scheda Delta confronta il 2026 con il 2025 e si compilava a mano:
+  // riempirla qui evita di ridigitare gli stessi numeri una seconda volta.
+  if(!DATA.deltaEdits) DATA.deltaEdits = {};
+  righe.forEach(r => {
+    DATA.deltaEdits[String(r.w)] = {
+      amt26: Math.round(r.tot * 100) / 100,
+      desc26: r.voci.sort((a,b)=>b.in-a.in)
+        .map(m => `${m.cp || 'senza controparte'} (${eur(m.in).replace('€ ','')})`).join(' | ').slice(0,400)
+    };
+  });
+
+  saveData();
+  renderDistribuzione();
+  renderDashboard();
+  renderDeltaDashboard();
+  anteprimaSettimane();
+  alert(`✅ Ricostruite ${righe.length} settimane per ${eur(tot)}.\n\n` +
+        'Aggiornata anche la scheda Delta 2025/2026 con le fatture di ogni settimana.');
 }
 
 // ---------- REGOLE APPRESE DALLE CORREZIONI ----------
@@ -2392,6 +2521,7 @@ function renderCategorie(){
         <option value="" ${!naturaDi(c.name)?'selected':''}>— voce di spesa —</option>
         <option value="debito" ${naturaDi(c.name)==='debito'?'selected':''}>Debito (da restituire)</option>
         <option value="credito" ${naturaDi(c.name)==='credito'?'selected':''}>Credito (da incassare)</option>
+        <option value="ricavo" ${naturaDi(c.name)==='ricavo'?'selected':''}>Ricavo (distribuito nei fondi FRS)</option>
       </select></td>
       <td class="small">${usedIn||'—'}</td>
       <td><button class="danger" onclick="deleteCategoria(${idx})">✕</button></td>`;
