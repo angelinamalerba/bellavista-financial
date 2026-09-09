@@ -70,6 +70,38 @@ ETICHETTE = {
     "so": "Fondo Spese Operative",
 }
 
+# Список категорий приложения. Нужен, чтобы выгрузка была самодостаточной:
+# если отдать JSON без categorie, в приложении выпадающий список окажется пуст
+# и категорию движения нельзя будет поправить.
+CATEGORIE_DEFAULT = [
+    ("Fondo Agenti", "entrambi", ""), ("Fondo Partner", "entrambi", ""),
+    ("Fondo Dirigenza", "entrambi", ""), ("Fondo Marketing & IT", "entrambi", ""),
+    ("Fondo IVA+Imposte", "entrambi", ""), ("Fondo Retribuzioni", "entrambi", ""),
+    ("Fondo Dividendi", "entrambi", ""), ("Fondo CEO", "entrambi", ""),
+    ("Fondo Sviluppo", "entrambi", ""), ("Fondo Riserve", "entrambi", ""),
+    ("Fondo Rimborso", "entrambi", ""), ("Fondo Formazione", "entrambi", ""),
+    ("Fondo Affitti", "entrambi", ""), ("Fondo SO", "entrambi", ""),
+    ("Fattura Cliente", "entrambi", ""), ("Fattura Fornitore", "po", ""),
+    ("Storno / Rettifica", "entrambi", ""), ("Saldo Commerciale", "entrambi", ""),
+    ("Onorario Notaio", "po", ""), ("Onorario Professionista", "po", ""),
+    ("Investimento Immobiliare", "entrambi", ""), ("Rimborso Cliente", "banca", ""),
+    ("Mediazione Immobiliare", "entrambi", ""), ("Commissioni", "banca", ""),
+    ("Finanziamento IC", "banca", "debito"), ("Stipendi", "banca", ""),
+    ("Tasse", "banca", ""), ("Software", "entrambi", ""), ("Marketing", "entrambi", ""),
+    ("Spese Ufficio", "entrambi", ""), ("Formazione Esterna", "entrambi", ""),
+    ("Consulenze", "entrambi", ""), ("Altro", "entrambi", ""),
+]
+
+
+def categorie_app(stato):
+    """Категории из выгрузки приложения, иначе полный список по умолчанию."""
+    salvate = (stato or {}).get("categorie")
+    if salvate:
+        return salvate
+    return [{"name": n, "type": t, **({"natura": na} if na else {})}
+            for n, t, na in CATEGORIE_DEFAULT]
+
+
 QUOTA_MARGINE = 0.50  # margine = 50% ricavi, зашито в calcWeek() приложения
 
 
@@ -135,6 +167,36 @@ def settimana_di(data, anno=None):
         if r["start"] <= data <= r["end"]:
             return r["w"]
     return None
+
+
+# ---------------------------------------------------------- контрагент
+
+# Имя контрагента не отдельное поле выписки — оно внутри описания, в нескольких
+# устойчивых форматах Banco BPM. Без него нельзя собрать реестр долгов: неясно,
+# кому компания должна и кто должен ей.
+RE_CONTROPARTE = [
+    re.compile(r"BON\.\s*DA\s+(.+?)(?:\s+-\s+|$)", re.I),
+    re.compile(r"\bFAVORE\s+(.+?)(?:\s+-\s+|$)", re.I),
+    re.compile(r"BONIFICO DALL'ESTERO\s*-\s*[\d\-/]*\s*N\.\s*\d+\s+(.+?)(?:\s+-\s+|$)", re.I),
+    re.compile(r"SDD[^:]*:\s*\d*\s*(.+?)(?:\s+-\s+|$)", re.I),
+    re.compile(r"CARTA\*\d+\s*-\s*[\d:]+\s*-\s*(.+?)$", re.I),
+]
+
+PAESI_CODA = re.compile(r"\s+(NOTPROVIDE|ITA|USA|NLD|GBR|CHE|DEU|FRA|ESP|IRL|LUX|POL|SWE|AUT)$", re.I)
+
+
+def controparte(desc):
+    d = str(desc or "").strip()
+    for rx in RE_CONTROPARTE:
+        m = rx.search(d)
+        if m and m.group(1):
+            n = re.sub(r"\s+", " ", m.group(1)).strip()
+            while PAESI_CODA.search(n):
+                n = PAESI_CODA.sub("", n)
+            n = n.rstrip(" -\u2013").strip()
+            if len(n) > 2:
+                return n[:60]
+    return ""
 
 
 # ------------------------------------------------- разбор выписки Banco BPM
@@ -296,6 +358,7 @@ def leggi_estratto(percorso, regole=None, anno=None):
             "out": round(uscita, 2),
             "cat": cat,
             "cat_banca": cat_file,
+            "cp": controparte(desc),
             "fonte_cat": fonte,
             "settimana": settimana_di(data, anno),
             "rec": "N",
@@ -549,7 +612,7 @@ def cmd_chiusura(a):
     if a.out_json:
         nuovo = dict(stato)
         nuovo["bank"] = list(stato.get("bank", [])) + [
-            {k: m[k] for k in ("date", "desc", "in", "out", "cat", "rec")} for m in del_sett
+            {k: m[k] for k in ("date", "desc", "in", "out", "cat", "rec", "cp")} for m in del_sett
         ]
         if entrate:
             nuovo["weeks"] = list(stato.get("weeks", [])) + [
@@ -663,8 +726,10 @@ def cmd_periodo(a):
 
     if a.out_json:
         nuovo = dict(stato) if stato else {"po": [], "params": {}, "bankBalances": {"conto": 0, "libro": 0},
-                                           "categorie": [], "deltaEdits": {}}
-        nuovo["bank"] = [{k: m[k] for k in ("date", "desc", "in", "out", "cat", "rec")} for m in mov]
+                                           "deltaEdits": {}, "debiti": []}
+        nuovo["categorie"] = categorie_app(stato)
+        nuovo.setdefault("debiti", [])
+        nuovo["bank"] = [{k: m[k] for k in ("date", "desc", "in", "out", "cat", "rec", "cp")} for m in mov]
         nuovo["weeks"] = [{"date": cal[w]["start"].isoformat(), "amount": round(per_sett[w]["ricavi"], 2)}
                           for w in sorted(k for k in per_sett if k in cal and per_sett[k]["ricavi"] > 0)]
         Path(a.out_json).write_text(json.dumps(
@@ -672,6 +737,57 @@ def cmd_periodo(a):
              "exportedAt": datetime.datetime.now().isoformat(), "data": nuovo},
             ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"💾 Stato per l'app: `{a.out_json}`")
+
+
+def cmd_debiti(a):
+    """Реестр долгов и требований по контрагентам."""
+    regole = carica_regole(a.regole)
+    mov, meta = leggi_estratto(a.estratto, regole, a.anno)
+    if meta.get("errore"):
+        print(f"❌ {meta['errore']}")
+        sys.exit(1)
+    cat_debito = set(a.categorie.split(",")) if a.categorie else {"Finanziamento IC"}
+
+    per = {}
+    for m in mov:
+        if m["cat"] not in cat_debito:
+            continue
+        cp = m["cp"] or "(controparte non riconosciuta)"
+        r = per.setdefault(cp, {"ricevuto": 0.0, "restituito": 0.0, "n": 0, "righe": []})
+        r["ricevuto"] += m["in"]
+        r["restituito"] += m["out"]
+        r["n"] += 1
+        r["righe"].append(m)
+
+    righe = sorted(((cp, v) for cp, v in per.items()),
+                   key=lambda x: -abs(x[1]["ricevuto"] - x[1]["restituito"]))
+    tot_deb = sum(max(0.0, v["ricevuto"] - v["restituito"]) for _, v in righe)
+    tot_cre = sum(max(0.0, v["restituito"] - v["ricevuto"]) for _, v in righe)
+
+    out = ["# Debiti e crediti per controparte", "",
+           f"Categorie considerate: {', '.join(sorted(cat_debito))}", "",
+           f"- Debiti aperti (da restituire): **{eur(tot_deb)}**",
+           f"- Crediti aperti (da incassare): **{eur(tot_cre)}**",
+           f"- Posizione netta: **{eur(tot_deb - tot_cre)}**", "",
+           "| Controparte | Posizione | Ricevuto | Restituito | Saldo aperto | Mov. |",
+           "|---|---|---|---|---|---|"]
+    for cp, v in righe:
+        saldo = v["ricevuto"] - v["restituito"]
+        pos = "Debito" if saldo > 0.005 else ("Credito" if saldo < -0.005 else "Chiuso")
+        out.append(f"| {cp} | {pos} | {eur(v['ricevuto']) if v['ricevuto'] else '—'} | "
+                   f"{eur(v['restituito']) if v['restituito'] else '—'} | {eur(abs(saldo))} | {v['n']} |")
+    rapporto = "\n".join(out)
+    print(rapporto)
+    if a.out_report:
+        Path(a.out_report).write_text(rapporto, encoding="utf-8")
+    if a.out_csv:
+        rows = [["Controparte", "Data", "Causale", "Ricevuto", "Restituito", "Categoria"]]
+        for cp, v in righe:
+            for m in sorted(v["righe"], key=lambda x: x["date"]):
+                rows.append([cp, m["date"], m["desc"], f"{m['in']:.2f}", f"{m['out']:.2f}", m["cat"]])
+        with open(a.out_csv, "w", encoding="utf-8-sig", newline="") as f:
+            csv.writer(f, delimiter=";").writerows(rows)
+        print(f"\n💾 Dettaglio: `{a.out_csv}`")
 
 
 def main():
@@ -715,6 +831,15 @@ def main():
     pr.add_argument("--out-report", help="rapporto in Markdown")
     pr.add_argument("--out-matrice", help="CSV con il dettaglio settimana × categoria")
     pr.set_defaults(func=cmd_periodo)
+
+    db = sub.add_parser("debiti", help="registro debiti/crediti per controparte")
+    db.add_argument("--estratto", required=True)
+    db.add_argument("--regole")
+    db.add_argument("--anno", type=int)
+    db.add_argument("--categorie", help="categorie di natura debito/credito, separate da virgola")
+    db.add_argument("--out-report")
+    db.add_argument("--out-csv")
+    db.set_defaults(func=cmd_debiti)
 
     a = ap.parse_args()
     a.func(a)

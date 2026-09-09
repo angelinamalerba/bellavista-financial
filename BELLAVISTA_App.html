@@ -49,6 +49,9 @@
   .kpi .value{font-size:22px; font-weight:bold; color:var(--navy); margin-top:4px;}
   .kpi.warn{background:#FCEFE3;}
   .kpi.ok{background:#E8F8EF;}
+  button.linkish{background:none; border:none; color:var(--navy); font-weight:bold; cursor:pointer;
+    font-size:12px; padding:0; text-align:left;}
+  button.linkish:hover{text-decoration:underline;}
   .check-ok{color:var(--green); font-weight:bold;}
   .check-bad{color:var(--red); font-weight:bold;}
   /* Le tabelle larghe (distribuzione, delta, movimenti) scorrono dentro il
@@ -100,6 +103,7 @@
   <button class="navbtn" data-tab="distribuzione">💰 Distribuzione Settimanale</button>
   <button class="navbtn" data-tab="po">📋 Purchase Orders</button>
   <button class="navbtn" data-tab="banca">🏦 Riconciliazione Banca</button>
+  <button class="navbtn" data-tab="debiti">🤝 Debiti / Crediti</button>
   <button class="navbtn" data-tab="parametri">⚙️ Parametri FRS</button>
   <button class="navbtn" data-tab="categorie">🗂️ Categorie Spese</button>
   <button class="navbtn" data-tab="delta">📈 Delta 2025/2026</button>
@@ -365,6 +369,19 @@
     <div class="card">
       <h2>Movimenti</h2>
       <button class="primary" onclick="exportBanca()">⬇ Esporta in Excel (CSV)</button>
+      <div style="display:flex; gap:8px; align-items:end; flex-wrap:wrap; margin-top:12px;
+                  background:#F8F8F8; border:1px solid #ddd; border-radius:6px; padding:10px;">
+        <div><label style="font-size:11px;">Filtra per categoria</label><br>
+          <select id="b_filtro_cat" onchange="renderBanca()"></select></div>
+        <div><label style="font-size:11px;">Cerca nella causale</label><br>
+          <input type="text" id="b_filtro_testo" oninput="renderBanca()" placeholder="es. MAYOROVA" style="padding:5px;"></div>
+        <div><button onclick="document.getElementById('b_filtro_cat').value='';document.getElementById('b_filtro_testo').value='';renderBanca()">↺ Azzera</button></div>
+        <div style="border-left:1px solid #ccc; padding-left:10px;">
+          <label style="font-size:11px;">Assegna a tutti i filtrati</label><br>
+          <select id="b_bulk_cat"></select>
+          <button onclick="assegnaCategoriaFiltrati()">Applica</button></div>
+        <div class="small" id="b_filtro_msg" style="margin-left:auto;"></div>
+      </div>
       <div class="table-wrap">
       <table>
         <thead><tr><th>#</th><th>Data</th><th>Causale</th><th>Entrata</th><th>Uscita</th><th>Categoria</th><th>Riconc.</th><th></th></tr></thead>
@@ -447,8 +464,54 @@
       </div>
       <div class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th class="left" style="min-width:240px;">Nome categoria</th><th>Tipo</th><th>Usata in</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th class="left" style="min-width:240px;">Nome categoria</th><th>Tipo</th><th>Natura</th><th>Usata in</th><th></th></tr></thead>
         <tbody id="catBody"></tbody>
+      </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- DEBITI / CREDITI -->
+  <section id="debiti" class="tab">
+    <div class="card">
+      <h2>Posizione debitoria e creditoria</h2>
+      <p class="small">Le categorie con natura <b>Debito</b> o <b>Credito</b> (in «Categorie Spese») non sono
+      semplici voci di spesa: i giroconti infragruppo e i finanziamenti soci entrano sul conto ma vanno
+      restituiti. Qui si vede, controparte per controparte, quanto è stato ricevuto, quanto restituito e
+      quanto resta aperto. Clicca una controparte per vedere i movimenti che compongono il saldo.</p>
+      <div class="kpi-grid" id="debKpi"></div>
+    </div>
+
+    <div class="card">
+      <h2>Registra movimento fuori banca</h2>
+      <p class="small">Per debiti e crediti che non passano dal conto corrente: compensazioni, accolli, note di credito.</p>
+      <div class="form-grid">
+        <div><label>Data</label><input type="date" id="deb_date"></div>
+        <div><label>Controparte</label><input type="text" id="deb_cp" placeholder="es. CBV INTERIOR GALLERY SRL"></div>
+        <div><label>Causale</label><input type="text" id="deb_desc"></div>
+        <div><label>Ricevuto (€)</label><input type="number" id="deb_ric" step="0.01" min="0"></div>
+        <div><label>Restituito (€)</label><input type="number" id="deb_res" step="0.01" min="0"></div>
+        <div><label>Natura</label>
+          <select id="deb_natura"><option value="debito">Debito</option><option value="credito">Credito</option></select>
+        </div>
+        <div><button class="primary" onclick="addDebito()">+ Aggiungi</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Controparti</h2>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <button class="primary" onclick="exportDebiti()">⬇ Esporta riepilogo (CSV)</button>
+        <button onclick="exportDebitiDettaglio()">⬇ Esporta dettaglio movimenti (CSV)</button>
+      </div>
+      <div class="table-wrap">
+      <table id="debTable">
+        <thead><tr>
+          <th class="left" style="min-width:280px;">Controparte</th><th>Posizione</th>
+          <th>Ricevuto</th><th>Restituito</th><th>Saldo aperto</th><th>Mov.</th>
+        </tr></thead>
+        <tbody id="debBody"></tbody>
+        <tfoot id="debFoot"></tfoot>
       </table>
       </div>
     </div>
@@ -554,7 +617,7 @@ const DEFAULT_CATEGORIE = [
   {name:'Mediazione Immobiliare', type:'entrambi'},
   // Spese operative
   {name:'Commissioni', type:'banca'},
-  {name:'Finanziamento IC', type:'banca'},
+  {name:'Finanziamento IC', type:'banca', natura:'debito'},
   {name:'Stipendi', type:'banca'},
   {name:'Tasse', type:'banca'},
   {name:'Software', type:'entrambi'},
@@ -570,9 +633,10 @@ function loadData(){
   if(raw){
     const d = JSON.parse(raw);
     if(!d.categorie) d.categorie = DEFAULT_CATEGORIE.map(c=>({...c}));
+    if(!d.debiti) d.debiti = [];
     return d;
   }
-  return { weeks:[], po:[], bank:[], params: DEFAULT_PARAMS, bankBalances:{conto:0, libro:0}, categorie: DEFAULT_CATEGORIE.map(c=>({...c})) };
+  return { weeks:[], po:[], bank:[], params: DEFAULT_PARAMS, bankBalances:{conto:0, libro:0}, categorie: DEFAULT_CATEGORIE.map(c=>({...c})), debiti:[] };
 }
 let DATA = loadData();
 function saveData(){ localStorage.setItem('bellavista_data', JSON.stringify(DATA)); }
@@ -587,6 +651,7 @@ document.querySelectorAll('.navbtn').forEach(btn=>{
     if(btn.dataset.tab==='dashboard') renderDashboard();
     if(btn.dataset.tab==='categorie') renderCategorie();
     if(btn.dataset.tab==='delta') renderDeltaDashboard();
+    if(btn.dataset.tab==='debiti') renderDebiti();
   });
 });
 
@@ -755,14 +820,40 @@ function addBank(){
 function deleteBank(idx){ DATA.bank.splice(idx,1); saveData(); renderBanca(); }
 function setBankRec(idx, val){ DATA.bank[idx].rec = val; saveData(); renderBanca(); }
 
+// Quante righe si disegnano al massimo. Un estratto conto annuale supera gli
+// 800 movimenti e disegnare altrettanti menu a tendina blocca la pagina per
+// secondi: meglio mostrarne un blocco e invitare a filtrare.
+const LIMITE_RIGHE_BANCA = 400;
+
 function renderBanca(){
   const body = document.getElementById('bankBody');
   body.innerHTML='';
+  // i totali restano su TUTTI i movimenti: la riconciliazione non dipende dal filtro
   let totIn=0, totOut=0, nonRec=0;
-  DATA.bank.forEach((m, idx)=>{
+  DATA.bank.forEach(m=>{
+    totIn += m.in; totOut += m.out;
+    if(m.rec==='N') nonRec += (m.in - m.out);
+  });
+
+  aggiornaFiltroCategorie();
+  const bulk = document.getElementById('b_bulk_cat');
+  if(bulk){
+    const cur = bulk.value;
+    bulk.innerHTML = '<option value="">— categoria —</option>' + getCatOptions('banca');
+    if([...bulk.options].some(o=>o.value===cur || o.text===cur)) bulk.value = cur;
+  }
+
+  const visibili = movimentiFiltrati();
+  const troncato = visibili.length > LIMITE_RIGHE_BANCA;
+  const optBase = getCatOptions('banca');
+  const nomiCat = DATA.categorie.map(c=>c.name);
+
+  visibili.slice(0, LIMITE_RIGHE_BANCA).forEach(({m, idx})=>{
+    const extra = nomiCat.includes(m.cat) ? '' : `<option>${m.cat}</option>`;
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${idx+1}</td><td>${m.date||''}</td><td class="left">${m.desc}</td>
-      <td>${m.in? eur(m.in):''}</td><td>${m.out? eur(m.out):''}</td><td>${m.cat}</td>
+      <td>${m.in? eur(m.in):''}</td><td>${m.out? eur(m.out):''}</td>
+      <td><select data-cat-idx="${idx}" onchange="setBankCat(${idx}, this.value)">${extra}${optBase}</select></td>
       <td><select onchange="setBankRec(${idx}, this.value)">
             <option value="N" ${m.rec==='N'?'selected':''}>No</option>
             <option value="S" ${m.rec==='S'?'selected':''}>Sì</option>
@@ -770,11 +861,18 @@ function renderBanca(){
           </select></td>
       <td><button class="danger" onclick="deleteBank(${idx})">✕</button></td>`;
     body.appendChild(tr);
-    totIn += m.in; totOut += m.out;
-    if(m.rec==='N') nonRec += (m.in - m.out);
+    tr.querySelector('[data-cat-idx]').value = m.cat;
   });
+
+  const msg = document.getElementById('b_filtro_msg');
+  if(msg) msg.innerHTML = visibili.length === DATA.bank.length
+    ? `${DATA.bank.length} movimenti`
+    : `<b>${visibili.length}</b> di ${DATA.bank.length} movimenti` +
+      (troncato ? ` — mostrati i primi ${LIMITE_RIGHE_BANCA}, restringi il filtro per vederli tutti` : '');
+
   document.getElementById('bankFoot').innerHTML =
-    `<tr class="tot-row"><td colspan="3" class="left">TOTALI</td><td>${eur(totIn)}</td><td>${eur(totOut)}</td>
+    `<tr class="tot-row"><td colspan="3" class="left">TOTALI (su tutti i ${DATA.bank.length} movimenti)</td>
+     <td>${eur(totIn)}</td><td>${eur(totOut)}</td>
      <td colspan="3">Non riconciliato: ${eur(nonRec)}</td></tr>`;
 
   const saldoConto = parseFloat(document.getElementById('b_saldoConto').value)||0;
@@ -787,6 +885,7 @@ function renderBanca(){
 
   renderBankWeekly();
   renderBankCategorie();
+  renderDebiti();
 }
 
 // ---------- PARAMETRI ----------
@@ -969,7 +1068,8 @@ function importJSON(input){
       params: d.params || DEFAULT_PARAMS,
       bankBalances: d.bankBalances || {conto:0, libro:0},
       categorie: (Array.isArray(d.categorie) && d.categorie.length) ? d.categorie : DEFAULT_CATEGORIE.map(c=>({...c})),
-      deltaEdits: d.deltaEdits || {}
+      deltaEdits: d.deltaEdits || {},
+      debiti: d.debiti || []
     };
     saveData();
     refreshDropdowns();
@@ -1410,6 +1510,243 @@ function modelloPO(){
   ]);
 }
 
+// ---------- CONTROPARTI ----------
+// Il nome di chi ha mandato o ricevuto i soldi non è un campo dell'estratto
+// conto: sta dentro la causale, in una manciata di formati fissi di Banco BPM.
+// Estrarlo serve a due cose: raggruppare i finanziamenti per controparte nel
+// registro Debiti/Crediti, e capire a colpo d'occhio se una spesa è nella
+// categoria giusta senza dover leggere tutta la causale.
+const RE_CONTROPARTE = [
+  /BON\.\s*DA\s+(.+?)(?:\s+-\s+|$)/i,                                    // BONIF. VS. FAVORE - BON.DA <nome> - causale
+  /\bFAVORE\s+(.+?)(?:\s+-\s+|$)/i,                                      // VS.DISP. RIF. ... FAVORE <nome> - causale
+  /BONIFICO DALL'ESTERO\s*-\s*[\d\-\/]*\s*N\.\s*\d+\s+(.+?)(?:\s+-\s+|$)/i,
+  /SDD[^:]*:\s*\d*\s*(.+?)(?:\s+-\s+|$)/i,                               // ADDEBITO DIRETTO SDD - SDD B2B : 1870 <nome>
+  /CARTA\*\d+\s*-\s*[\d:]+\s*-\s*(.+?)$/i                                // PAGAMENTO INTERNET - CARTA*1248-12:05-<esercente>
+];
+
+const PAESI_CODA = /\s+(NOTPROVIDE|ITA|USA|NLD|GBR|CHE|DEU|FRA|ESP|IRL|LUX|POL|SWE|AUT)$/i;
+
+function controparte(desc){
+  const d = String(desc || '').trim();
+  for(const re of RE_CONTROPARTE){
+    const m = re.exec(d);
+    if(m && m[1]){
+      let n = m[1].trim().replace(/\s+/g, ' ');
+      while(PAESI_CODA.test(n)) n = n.replace(PAESI_CODA, '');
+      n = n.replace(/\s*[-–]\s*$/, '').trim();
+      if(n.length > 2) return n.slice(0, 60);
+    }
+  }
+  return '';
+}
+
+// ---------- NATURA DELLE CATEGORIE ----------
+// Una categoria può essere una semplice voce di spesa oppure generare un
+// rapporto di debito o credito. I giroconti infragruppo e i finanziamenti soci
+// entrano sul conto ma vanno restituiti: contarli solo come "entrata" nasconde
+// che quei soldi sono dovuti a qualcuno.
+const NATURA_DEFAULT = { 'Finanziamento IC': 'debito' };
+
+function naturaDi(nomeCat){
+  const c = DATA.categorie.find(x => x.name === nomeCat);
+  if(c && c.natura !== undefined && c.natura !== '') return c.natura;
+  if(c && c.natura === '') return '';
+  return NATURA_DEFAULT[nomeCat] || '';
+}
+
+function setCatNatura(idx, v){
+  DATA.categorie[idx].natura = v;
+  saveData();
+  renderCategorie();
+  renderDebiti();
+}
+
+// ---------- REGISTRO DEBITI / CREDITI ----------
+
+function righeDebiti(){
+  const per = {};
+  const aggiungi = (cp, natura, ricevuto, restituito, riga) => {
+    const k = cp || '(controparte non riconosciuta)';
+    const r = per[k] || (per[k] = {cp: k, natura, ricevuto: 0, restituito: 0, n: 0, righe: []});
+    r.ricevuto += ricevuto;
+    r.restituito += restituito;
+    r.n++;
+    r.righe.push(riga);
+    if(natura === 'credito') r.natura = r.natura === 'debito' ? 'misto' : 'credito';
+    return r;
+  };
+
+  DATA.bank.forEach((m, idx) => {
+    const natura = naturaDi(m.cat);
+    if(!natura) return;
+    aggiungi(m.cp || controparte(m.desc), natura, m.in || 0, m.out || 0,
+             {date: m.date, desc: m.desc, in: m.in, out: m.out, cat: m.cat, fonte: 'banca', idx});
+  });
+
+  (DATA.debiti || []).forEach((d, idx) => {
+    aggiungi(d.cp, d.natura || 'debito', parseFloat(d.ricevuto) || 0, parseFloat(d.restituito) || 0,
+             {date: d.date, desc: d.desc || d.note || '', in: parseFloat(d.ricevuto) || 0,
+              out: parseFloat(d.restituito) || 0, cat: d.cat || '—', fonte: 'manuale', idx});
+  });
+
+  return Object.values(per)
+    .map(r => ({...r, saldo: r.ricevuto - r.restituito}))
+    .sort((a, b) => Math.abs(b.saldo) - Math.abs(a.saldo));
+}
+
+let DEBITI_APERTO = null;   // controparte espansa nel dettaglio
+
+function renderDebiti(){
+  const body = document.getElementById('debBody');
+  if(!body) return;
+  const righe = righeDebiti();
+  body.innerHTML = '';
+
+  let totDebito = 0, totCredito = 0, totRic = 0, totRes = 0;
+  righe.forEach(r => {
+    totRic += r.ricevuto; totRes += r.restituito;
+    if(r.saldo > 0) totDebito += r.saldo; else totCredito += -r.saldo;
+  });
+
+  righe.forEach(r => {
+    const segno = r.saldo > 0.005 ? 'debito' : (r.saldo < -0.005 ? 'credito' : 'chiuso');
+    const etichetta = {debito: '<span class="badge attesa">Debito</span>',
+                       credito: '<span class="badge approvato">Credito</span>',
+                       chiuso: '<span class="badge annullato">Chiuso</span>'}[segno];
+    const aperto = DEBITI_APERTO === r.cp;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td class="left"><button class="linkish" onclick="apriDebito(${JSON.stringify(r.cp).replace(/"/g,'&quot;')})">${aperto ? '▾' : '▸'} ${r.cp}</button></td>
+       <td>${etichetta}</td>
+       <td>${r.ricevuto ? eur(r.ricevuto) : '—'}</td>
+       <td>${r.restituito ? eur(r.restituito) : '—'}</td>
+       <td class="${r.saldo > 0.005 ? 'delta-neg' : (r.saldo < -0.005 ? 'delta-pos' : 'delta-zero')}">${eur(Math.abs(r.saldo))}</td>
+       <td>${r.n}</td>`;
+    body.appendChild(tr);
+
+    if(aperto){
+      const det = document.createElement('tr');
+      const righeDet = r.righe.slice().sort((a, b) => String(a.date).localeCompare(String(b.date)))
+        .map(x => `<tr><td>${x.date || ''}</td><td class="left">${x.desc}</td>
+                   <td>${x.in ? eur(x.in) : ''}</td><td>${x.out ? eur(x.out) : ''}</td>
+                   <td>${x.cat}</td><td class="small">${x.fonte}</td></tr>`).join('');
+      det.innerHTML =
+        `<td colspan="6" style="background:#FAFAFA; padding:0 10px 10px 10px;">
+           <table style="margin-top:6px;">
+             <thead><tr><th>Data</th><th class="left">Causale</th><th>Ricevuto</th><th>Restituito</th><th>Categoria</th><th>Origine</th></tr></thead>
+             <tbody>${righeDet}</tbody>
+           </table>
+         </td>`;
+      body.appendChild(det);
+    }
+  });
+
+  if(righe.length === 0){
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#999;">
+      Nessun movimento con natura Debito o Credito. Assegna la natura alle categorie in «Categorie Spese».</td></tr>`;
+  }
+
+  document.getElementById('debFoot').innerHTML =
+    `<tr class="tot-row"><td class="left">TOTALI (${righe.length} controparti)</td><td></td>
+     <td>${eur(totRic)}</td><td>${eur(totRes)}</td><td>${eur(totRic - totRes)}</td><td></td></tr>`;
+
+  document.getElementById('debKpi').innerHTML = [
+    ['Debiti aperti', eur(totDebito), 'quanto la società deve restituire', 'delta-warn'],
+    ['Crediti aperti', eur(totCredito), 'quanto deve rientrare', 'delta-ok'],
+    ['Posizione netta', eur(totDebito - totCredito), totDebito >= totCredito ? 'esposizione netta a debito' : 'esposizione netta a credito', ''],
+    ['Controparti', String(righe.length), 'con almeno un movimento', '']
+  ].map(([l, v, s, cls]) => `<div class="kpi ${cls}"><div class="label">${l}</div>
+      <div class="value">${v}</div><div class="small">${s}</div></div>`).join('');
+}
+
+function apriDebito(cp){
+  DEBITI_APERTO = DEBITI_APERTO === cp ? null : cp;
+  renderDebiti();
+}
+
+function addDebito(){
+  const cp = document.getElementById('deb_cp').value.trim();
+  const ric = parseFloat(document.getElementById('deb_ric').value) || 0;
+  const res = parseFloat(document.getElementById('deb_res').value) || 0;
+  if(!cp || (!ric && !res)){ alert('Servono la controparte e almeno un importo.'); return; }
+  if(!DATA.debiti) DATA.debiti = [];
+  DATA.debiti.push({
+    date: document.getElementById('deb_date').value,
+    cp, desc: document.getElementById('deb_desc').value.trim(),
+    ricevuto: ric, restituito: res,
+    natura: document.getElementById('deb_natura').value
+  });
+  saveData();
+  ['deb_cp','deb_desc','deb_ric','deb_res'].forEach(id => document.getElementById(id).value = '');
+  renderDebiti();
+}
+
+function exportDebiti(){
+  const rows = [['Controparte','Natura','Ricevuto','Restituito','Saldo','N. movimenti']];
+  righeDebiti().forEach(r => rows.push([r.cp, r.natura, numIT(r.ricevuto), numIT(r.restituito),
+                                        numIT(r.saldo), r.n]));
+  downloadCSV('Bellavista_Debiti_Crediti.csv', rows);
+}
+
+function exportDebitiDettaglio(){
+  const rows = [['Controparte','Data','Causale','Ricevuto','Restituito','Categoria','Origine']];
+  righeDebiti().forEach(r => r.righe
+    .slice().sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .forEach(x => rows.push([r.cp, x.date || '', x.desc, numIT(x.in || 0), numIT(x.out || 0), x.cat, x.fonte])));
+  downloadCSV('Bellavista_Debiti_Crediti_Dettaglio.csv', rows);
+}
+
+// ---------- CORREZIONE DELLE CATEGORIE ----------
+// La categoria assegnata all'import è un'ipotesi: quella della banca o una
+// regola su parole chiave. Poterla correggere qui, con un filtro per trovare
+// in fretta le voci finite in «Altro», è ciò che rende affidabile la Vista
+// per Categoria.
+
+function setBankCat(idx, v){
+  DATA.bank[idx].cat = v;
+  saveData();
+  renderBanca();
+}
+
+function filtroBanca(){
+  return {
+    cat: (document.getElementById('b_filtro_cat') || {}).value || '',
+    testo: ((document.getElementById('b_filtro_testo') || {}).value || '').trim().toLowerCase()
+  };
+}
+
+function movimentiFiltrati(){
+  const f = filtroBanca();
+  return DATA.bank
+    .map((m, idx) => ({m, idx}))
+    .filter(({m}) => (!f.cat || m.cat === f.cat) &&
+                     (!f.testo || (m.desc || '').toLowerCase().includes(f.testo) ||
+                                  (m.cp || '').toLowerCase().includes(f.testo)));
+}
+
+function aggiornaFiltroCategorie(){
+  const sel = document.getElementById('b_filtro_cat');
+  if(!sel) return;
+  const cur = sel.value;
+  const usate = {};
+  DATA.bank.forEach(m => usate[m.cat] = (usate[m.cat] || 0) + 1);
+  sel.innerHTML = '<option value="">— tutte le categorie —</option>' +
+    Object.keys(usate).sort().map(c => `<option value="${c}">${c} (${usate[c]})</option>`).join('');
+  if([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+
+function assegnaCategoriaFiltrati(){
+  const nuova = document.getElementById('b_bulk_cat').value;
+  if(!nuova){ alert('Scegli la categoria da assegnare.'); return; }
+  const scelti = movimentiFiltrati();
+  if(scelti.length === 0){ alert('Il filtro non seleziona nessun movimento.'); return; }
+  if(!confirm(`Assegnare la categoria «${nuova}» a ${scelti.length} movimenti filtrati?\n\n` +
+              'Riguarda solo le righe attualmente visibili.')) return;
+  scelti.forEach(({idx}) => DATA.bank[idx].cat = nuova);
+  saveData();
+  renderBanca();
+}
+
 // ---------- CATEGORIE SPESE ----------
 const typeLabel = {entrambi:'PO + Banca', po:'Solo PO', banca:'Solo Banca'};
 
@@ -1440,6 +1777,11 @@ function renderCategorie(){
         <option value="entrambi" ${c.type==='entrambi'?'selected':''}>PO + Banca</option>
         <option value="po" ${c.type==='po'?'selected':''}>Solo PO</option>
         <option value="banca" ${c.type==='banca'?'selected':''}>Solo Banca</option>
+      </select></td>
+      <td><select onchange="setCatNatura(${idx},this.value)">
+        <option value="" ${!naturaDi(c.name)?'selected':''}>— voce di spesa —</option>
+        <option value="debito" ${naturaDi(c.name)==='debito'?'selected':''}>Debito (da restituire)</option>
+        <option value="credito" ${naturaDi(c.name)==='credito'?'selected':''}>Credito (da incassare)</option>
       </select></td>
       <td class="small">${usedIn||'—'}</td>
       <td><button class="danger" onclick="deleteCategoria(${idx})">✕</button></td>`;
@@ -1709,7 +2051,8 @@ function importCSVRows(){
     DATA.bank.push({
       date: r.date, desc: r.desc,
       in: r.in, out: r.out,
-      cat: r.cat || defaultCat, rec: 'N'
+      cat: r.cat || defaultCat, rec: 'N',
+      cp: controparte(r.desc)
     });
   });
   DATA.bank.sort((a,b) => (a.date||'').localeCompare(b.date||''));

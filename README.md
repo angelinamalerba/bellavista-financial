@@ -48,6 +48,32 @@ Il lettore `.xlsx` è scritto nell'app stessa (uno `.xlsx` è uno ZIP di XML e i
 browser sa già decomprimere): nessuna libreria esterna, nessuna connessione,
 funziona offline come il resto dell'applicazione.
 
+## Debiti / Crediti
+
+Le categorie possono avere una **natura** (in «Categorie Spese»): voce di spesa
+normale, **Debito** (denaro ricevuto da restituire) o **Credito** (denaro
+prestato da incassare). I giroconti infragruppo e i finanziamenti soci entrano
+sul conto ma vanno restituiti: contarli solo come entrata nasconde che sono
+dovuti a qualcuno.
+
+La scheda **🤝 Debiti / Crediti** aggrega quei movimenti per controparte —
+ricevuto, restituito, saldo aperto — con il dettaglio espandibile e l'export
+CSV. Il nome della controparte viene estratto dalla causale, che nell'estratto
+Banco BPM è l'unico posto in cui compare. Si possono registrare anche movimenti
+che non passano dal conto (compensazioni, accolli, note di credito).
+
+## Correggere le categorie dei movimenti
+
+Nella scheda Riconciliazione Banca la categoria di ogni movimento è ora un menu
+a tendina modificabile, con sopra una barra per filtrare per categoria o cercare
+nella causale, e per assegnare una categoria a tutti i movimenti filtrati in una
+volta. Serve soprattutto a svuotare «Altro»: la categoria assegnata all'import è
+un'ipotesi, e la Vista per Categoria vale quanto vale quell'ipotesi.
+
+Con estratti conto lunghi la tabella disegna le prime 400 righe; il filtro serve
+a restringere, mentre i totali e la riconciliazione restano calcolati su tutti i
+movimenti.
+
 ### Backup e scambio dati (JSON)
 
 Dashboard → **💾 Backup completo (JSON)** scarica *tutti* i dati dell'app in un
