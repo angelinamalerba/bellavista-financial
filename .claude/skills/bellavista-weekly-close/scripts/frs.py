@@ -285,13 +285,17 @@ def leggi_estratto(percorso, regole=None, anno=None):
 
         desc = str(cell("desc")).strip()
         cat_file = str(cell("cat")).strip()
-        cat, fonte = (cat_file, "файл") if cat_file else classifica(desc, regole)
+        if cat_file:
+            cat, fonte = traduci_categoria_banca(cat_file, desc, regole)
+        else:
+            cat, fonte = classifica(desc, regole)
         movimenti.append({
             "date": data.isoformat(),
             "desc": desc,
             "in": round(entrata, 2),
             "out": round(uscita, 2),
             "cat": cat,
+            "cat_banca": cat_file,
             "fonte_cat": fonte,
             "settimana": settimana_di(data, anno),
             "rec": "N",
@@ -308,6 +312,41 @@ def carica_regole(percorso=None):
     if p.exists():
         return json.loads(p.read_text(encoding="utf-8"))
     return {"regole": [], "default": "Altro"}
+
+
+def traduci_categoria_banca(cat_banca, descrizione, regole=None):
+    """Категория из выписки Banco BPM → категория приложения.
+
+    Банк присылает свою таксономию («Servizi - Spese per servizi online»),
+    и брать её как есть нельзя: в приложении другой список, иначе аналитика
+    развалится. Если перевода нет — падаем на разбор описания.
+    """
+    regole = regole or carica_regole()
+    # автокатегория банка иногда просто неверна — сначала жёсткие правила по описанию
+    d = _norm(descrizione)
+    for r in regole.get("regole_forzate", []):
+        for kw in r.get("parole", []):
+            if _norm(kw) in d:
+                return r["categoria"], f"правило «{kw}» (важнее банка: {cat_banca})"
+    mappa = regole.get("mappa_banca", {})
+    norm = {_norm(k): v for k, v in mappa.items()}
+    tradotta = norm.get(_norm(cat_banca))
+    if tradotta:
+        return tradotta, f"банк: {cat_banca}"
+    cat, fonte = classifica(descrizione, regole)
+    return cat, f"{fonte} (банк: {cat_banca} — нет в mappa_banca)"
+
+
+def e_ricavo(mov, regole=None):
+    """Приход, который действительно выручка и подлежит распределению по FRS.
+
+    Поступление на счёт и выручка — разные вещи: внутригрупповые переводы,
+    займы учредителя и возвраты приходят на тот же счёт, но их распределение
+    по фондам раздуло бы фонды деньгами, которых компания не заработала.
+    """
+    regole = regole or carica_regole()
+    ricavi = set(regole.get("ricavi_frs", ["Fattura Cliente"]))
+    return mov["in"] > 0 and mov["cat"] in ricavi
 
 
 def classifica(descrizione, regole=None):
@@ -425,9 +464,12 @@ def cmd_chiusura(a):
 
     settimana = a.settimana or (max((m["settimana"] for m in mov if m["settimana"]), default=None))
     del_sett = [m for m in mov if m["settimana"] == settimana]
+    regole = carica_regole(a.regole)
     entrate = sum(m["in"] for m in del_sett)
     uscite = sum(m["out"] for m in del_sett)
-    calc = distribuisci(entrate, params)
+    ricavi = sum(m["in"] for m in del_sett if e_ricavo(m, regole))
+    non_ricavi = entrate - ricavi
+    calc = distribuisci(ricavi, params)
 
     per_cat = {}
     for m in del_sett:
@@ -453,7 +495,9 @@ def cmd_chiusura(a):
         "",
         "## 1. Итог недели",
         "",
-        f"- Поступления: **{eur(entrate)}**",
+        f"- Поступления всего: **{eur(entrate)}**"
+        + (f" (из них не выручка: {eur(non_ricavi)} — переводы, займы, возвраты)" if non_ricavi else ""),
+        f"- **Выручка для FRS: {eur(ricavi)}**",
         f"- Списания: **{eur(uscite)}**",
         f"- Сальдо недели: **{eur(entrate - uscite)}**",
         f"- Движений в выписке: {len(del_sett)} из {len(mov)} в файле",
@@ -523,6 +567,113 @@ def cmd_chiusura(a):
         Path(a.out_report).write_text(rapporto, encoding="utf-8")
 
 
+def cmd_periodo(a):
+    """Отчёт по всем неделям сразу — для сверки квартала или года целиком."""
+    stato = carica_stato(a.stato) or {}
+    params = carica_parametri(stato)
+    regole = carica_regole(a.regole)
+    mov, meta = leggi_estratto(a.estratto, regole, a.anno)
+    if meta.get("errore"):
+        print(f"❌ {meta['errore']}")
+        sys.exit(1)
+
+    anno = a.anno or datetime.date.fromisoformat(mov[0]["date"]).year
+    cal = {r["w"]: r for r in calendario(anno)}
+
+    per_sett = {}
+    per_cat = {}
+    matrice = {}
+    for m in mov:
+        w = m["settimana"]
+        s_ = per_sett.setdefault(w, {"in": 0.0, "out": 0.0, "ricavi": 0.0, "n": 0})
+        s_["in"] += m["in"]; s_["out"] += m["out"]; s_["n"] += 1
+        if e_ricavo(m, regole):
+            s_["ricavi"] += m["in"]
+        c = per_cat.setdefault(m["cat"], {"in": 0.0, "out": 0.0, "n": 0})
+        c["in"] += m["in"]; c["out"] += m["out"]; c["n"] += 1
+        cella = matrice.setdefault((w, m["cat"]), {"in": 0.0, "out": 0.0, "n": 0})
+        cella["in"] += m["in"]; cella["out"] += m["out"]; cella["n"] += 1
+
+    tot_in = sum(m["in"] for m in mov)
+    tot_out = sum(m["out"] for m in mov)
+    tot_ricavi = sum(m["in"] for m in mov if e_ricavo(m, regole))
+    calc = distribuisci(tot_ricavi, params)
+
+    out = [f"# Riconciliazione {anno} — {len(mov)} movimenti", ""]
+    date = sorted(m["date"] for m in mov)
+    out += [f"Periodo: **{date[0]} → {date[-1]}**", "",
+            "## 1. Totali del periodo", "",
+            f"- Entrate totali sul conto: **{eur(tot_in)}**",
+            f"- di cui ricavi da distribuire nei fondi FRS: **{eur(tot_ricavi)}**",
+            f"- di cui NON ricavi (giroconti, prestiti soci, rimborsi): **{eur(tot_in - tot_ricavi)}**",
+            f"- Uscite totali: **{eur(tot_out)}**",
+            f"- Saldo del periodo: **{eur(tot_in - tot_out)}**", "",
+            "## 2. Settimana per settimana", "",
+            "| Sett. | Periodo | Entrate | di cui ricavi FRS | Uscite | Netto | Mov. |",
+            "|---|---|---|---|---|---|---|"]
+    for w in sorted(k for k in per_sett if k is not None):
+        v = per_sett[w]
+        r = cal.get(w)
+        periodo = f"{r['start']} / {r['end']}" if r else "—"
+        out.append(f"| W{w} | {periodo} | {eur(v['in']) if v['in'] else '—'} | "
+                   f"{eur(v['ricavi']) if v['ricavi'] else '—'} | {eur(v['out']) if v['out'] else '—'} | "
+                   f"{eur(v['in'] - v['out'])} | {v['n']} |")
+    if None in per_sett:
+        v = per_sett[None]
+        out.append(f"| — | fuori dalle 52 settimane | {eur(v['in'])} | — | {eur(v['out'])} | "
+                   f"{eur(v['in'] - v['out'])} | {v['n']} |")
+
+    out += ["", "## 3. Totali per categoria", "",
+            "| Categoria | Entrate | Uscite | Netto | Mov. |", "|---|---|---|---|---|"]
+    for c, v in sorted(per_cat.items(), key=lambda x: -(x[1]["in"] + x[1]["out"])):
+        out.append(f"| {c} | {eur(v['in']) if v['in'] else '—'} | {eur(v['out']) if v['out'] else '—'} | "
+                   f"{eur(v['in'] - v['out'])} | {v['n']} |")
+
+    out += ["", "## 4. Distribuzione FRS sui ricavi del periodo", "",
+            f"Ricavi: **{eur(tot_ricavi)}**", "", stampa_fondi(calc)]
+
+    senza = [m for m in mov if "нет в mappa_banca" in m["fonte_cat"] or m["fonte_cat"] == "не распознано"]
+    out += ["", "## 5. Da rivedere", ""]
+    if senza:
+        out.append(f"{len(senza)} movimenti senza traduzione certa della categoria:")
+        out.append("")
+        for m in senza[:25]:
+            somma = eur(m["in"]) if m["in"] else f"-{eur(m['out'])}"
+            out.append(f"- {m['date']} · {somma} · {m['desc'][:60]} → **{m['cat']}** ({m['fonte_cat']})")
+        if len(senza) > 25:
+            out.append(f"- … e altri {len(senza) - 25}")
+    else:
+        out.append("Tutte le categorie della banca sono state tradotte.")
+
+    rapporto = "\n".join(out)
+    print(rapporto)
+    if a.out_report:
+        Path(a.out_report).write_text(rapporto, encoding="utf-8")
+
+    if a.out_matrice:
+        righe = [["Settimana", "Dal", "Al", "Categoria", "Entrate", "Uscite", "Netto", "N. movimenti"]]
+        for (w, c), v in sorted(matrice.items(), key=lambda x: (x[0][0] or 999, x[0][1])):
+            r = cal.get(w)
+            righe.append([f"W{w}" if w else "fuori",
+                          r["start"].isoformat() if r else "", r["end"].isoformat() if r else "",
+                          c, f"{v['in']:.2f}", f"{v['out']:.2f}", f"{v['in'] - v['out']:.2f}", v["n"]])
+        with open(a.out_matrice, "w", encoding="utf-8-sig", newline="") as f:
+            csv.writer(f, delimiter=";").writerows(righe)
+        print(f"\n💾 Dettaglio settimana × categoria: `{a.out_matrice}`")
+
+    if a.out_json:
+        nuovo = dict(stato) if stato else {"po": [], "params": {}, "bankBalances": {"conto": 0, "libro": 0},
+                                           "categorie": [], "deltaEdits": {}}
+        nuovo["bank"] = [{k: m[k] for k in ("date", "desc", "in", "out", "cat", "rec")} for m in mov]
+        nuovo["weeks"] = [{"date": cal[w]["start"].isoformat(), "amount": round(per_sett[w]["ricavi"], 2)}
+                          for w in sorted(k for k in per_sett if k in cal and per_sett[k]["ricavi"] > 0)]
+        Path(a.out_json).write_text(json.dumps(
+            {"schema": "bellavista-financial", "schemaVersion": 1,
+             "exportedAt": datetime.datetime.now().isoformat(), "data": nuovo},
+            ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"💾 Stato per l'app: `{a.out_json}`")
+
+
 def main():
     ap = argparse.ArgumentParser(description="Недельное закрытие Bellavista")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -554,6 +705,16 @@ def main():
     c.add_argument("--out-json", help="куда записать обновлённое состояние для импорта в приложение")
     c.add_argument("--out-report", help="куда записать отчёт в Markdown")
     c.set_defaults(func=cmd_chiusura)
+
+    pr = sub.add_parser("periodo", help="riconciliazione di tutte le settimane in una volta")
+    pr.add_argument("--estratto", required=True)
+    pr.add_argument("--stato")
+    pr.add_argument("--regole")
+    pr.add_argument("--anno", type=int)
+    pr.add_argument("--out-json", help="stato da importare nell'app")
+    pr.add_argument("--out-report", help="rapporto in Markdown")
+    pr.add_argument("--out-matrice", help="CSV con il dettaglio settimana × categoria")
+    pr.set_defaults(func=cmd_periodo)
 
     a = ap.parse_args()
     a.func(a)

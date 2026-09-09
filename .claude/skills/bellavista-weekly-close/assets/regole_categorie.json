@@ -4,75 +4,251 @@
   "regole": [
     {
       "categoria": "Storno / Rettifica",
-      "parole": ["storno", "rettifica", "reso", "annullamento", "riaccredito"]
+      "parole": [
+        "storno",
+        "rettifica",
+        "reso",
+        "annullamento",
+        "riaccredito"
+      ]
     },
     {
       "categoria": "Commissioni",
-      "parole": ["commissioni", "commissione", "spese tenuta conto", "canone conto", "imposta di bollo", "competenze"]
+      "parole": [
+        "commissioni",
+        "commissione",
+        "spese tenuta conto",
+        "canone conto",
+        "imposta di bollo",
+        "competenze"
+      ]
     },
     {
       "categoria": "Tasse",
-      "parole": ["f24", "agenzia entrate", "erario", "iva trimestrale", "inps", "irpef", "ires", "irap", "tributi"]
+      "parole": [
+        "f24",
+        "agenzia entrate",
+        "erario",
+        "iva trimestrale",
+        "inps",
+        "irpef",
+        "ires",
+        "irap",
+        "tributi"
+      ]
     },
     {
       "categoria": "Stipendi",
-      "parole": ["stipendio", "stipendi", "retribuzione", "cedolino", "busta paga", "compenso amministratore"]
+      "parole": [
+        "stipendio",
+        "stipendi",
+        "retribuzione",
+        "cedolino",
+        "busta paga",
+        "compenso amministratore"
+      ]
     },
     {
       "categoria": "Onorario Notaio",
-      "parole": ["notai", "notaio", "notarile", "milano notai"]
+      "parole": [
+        "notai",
+        "notaio",
+        "notarile",
+        "milano notai"
+      ]
     },
     {
       "categoria": "Onorario Professionista",
-      "parole": ["commercialista", "avvocato", "studio legale", "geometra", "architetto", "onorario", "parcella"]
+      "parole": [
+        "commercialista",
+        "avvocato",
+        "studio legale",
+        "geometra",
+        "architetto",
+        "onorario",
+        "parcella"
+      ]
     },
     {
       "categoria": "Mediazione Immobiliare",
-      "parole": ["mediazione", "provvigione", "provvigioni", "intermediazione"]
+      "parole": [
+        "mediazione",
+        "provvigione",
+        "provvigioni",
+        "intermediazione"
+      ]
     },
     {
       "categoria": "Investimento Immobiliare",
-      "parole": ["acquisto immobile", "rogito", "caparra", "acconto immobile", "compravendita"]
+      "parole": [
+        "acquisto immobile",
+        "rogito",
+        "caparra",
+        "acconto immobile",
+        "compravendita"
+      ]
     },
     {
       "categoria": "Rimborso Cliente",
-      "parole": ["rimborso cliente", "restituzione caparra", "rimborso acconto"]
+      "parole": [
+        "rimborso cliente",
+        "restituzione caparra",
+        "rimborso acconto"
+      ]
     },
     {
       "categoria": "Finanziamento IC",
-      "parole": ["finanziamento", "versamento soci", "finanziamento soci", "infragruppo"]
+      "parole": [
+        "finanziamento",
+        "versamento soci",
+        "finanziamento soci",
+        "infragruppo"
+      ]
     },
     {
       "categoria": "Marketing",
-      "parole": ["pixartprinting", "google ads", "meta platforms", "facebook", "pubblicita", "advertising", "stampa"]
+      "parole": [
+        "pixartprinting",
+        "google ads",
+        "meta platforms",
+        "facebook",
+        "pubblicita",
+        "advertising",
+        "stampa"
+      ]
     },
     {
       "categoria": "Software",
-      "parole": ["software", "licenza", "abbonamento", "subscription", "saas", "microsoft", "adobe", "aruba", "hosting", "dominio"]
+      "parole": [
+        "software",
+        "licenza",
+        "abbonamento",
+        "subscription",
+        "saas",
+        "microsoft",
+        "adobe",
+        "aruba",
+        "hosting",
+        "dominio"
+      ]
     },
     {
       "categoria": "Formazione Esterna",
-      "parole": ["corso", "formazione", "workshop", "master", "seminario"]
+      "parole": [
+        "corso",
+        "formazione",
+        "workshop",
+        "master",
+        "seminario"
+      ]
     },
     {
       "categoria": "Consulenze",
-      "parole": ["consulenza", "consulting", "advisory"]
+      "parole": [
+        "consulenza",
+        "consulting",
+        "advisory"
+      ]
     },
     {
       "categoria": "Spese Ufficio",
-      "parole": ["cancelleria", "utenze", "enel", "telecom", "tim ", "vodafone", "affitto ufficio", "locazione", "pulizie"]
+      "parole": [
+        "cancelleria",
+        "utenze",
+        "enel",
+        "telecom",
+        "tim ",
+        "vodafone",
+        "affitto ufficio",
+        "locazione",
+        "pulizie"
+      ]
     },
     {
       "categoria": "Fattura Fornitore",
-      "parole": ["ns fattura fornitore", "pagamento fattura", "saldo fattura fornitore"]
+      "parole": [
+        "ns fattura fornitore",
+        "pagamento fattura",
+        "saldo fattura fornitore"
+      ]
     },
     {
       "categoria": "Fattura Cliente",
-      "parole": ["fattura", "ft ", "vs fattura", "saldo prof", "acconto fattura"]
+      "parole": [
+        "fattura",
+        "ft ",
+        "vs fattura",
+        "saldo prof",
+        "acconto fattura"
+      ]
     },
     {
       "categoria": "Saldo Commerciale",
-      "parole": ["saldo", "bonifico a vostro favore", "accredito bonifico"]
+      "parole": [
+        "saldo",
+        "bonifico a vostro favore",
+        "accredito bonifico"
+      ]
+    }
+  ],
+  "_commento_mappa": "Banco BPM esporta una sua colonna Categoria/sottocategoria con una tassonomia diversa da quella dell'app. Qui si traduce nelle categorie di Categorie Spese: senza questa mappa la Vista per Categoria mostrerebbe i nomi della banca e non si potrebbe confrontare niente con i PO.",
+  "mappa_banca": {
+    "Ricavi - Ricavi dalle vendite": "Fattura Cliente",
+    "Ricavi - Generico": "Fattura Cliente",
+    "Ricavi - Rimborsi diversi": "Storno / Rettifica",
+    "Operazioni Finanziarie - Rimborsi a clienti": "Rimborso Cliente",
+    "Operazioni Finanziarie - Commissioni": "Commissioni",
+    "Operazioni Finanziarie - Interessi negativi": "Commissioni",
+    "Operazioni Finanziarie - Prelievo contante": "Altro",
+    "Operazioni Finanziarie - Multe e sanzioni": "Altro",
+    "Fornitori - Materie prime, beni e servizi": "Fattura Fornitore",
+    "Fornitori - Generico": "Fattura Fornitore",
+    "Fornitori - POS": "Fattura Fornitore",
+    "Servizi - Spese per servizi online": "Software",
+    "Servizi - Spese per professionisti": "Onorario Professionista",
+    "Servizi - Spese per manutenzione": "Spese Ufficio",
+    "Servizi - Spese condominiali": "Spese Ufficio",
+    "Servizi - Spese Marketing e Pubblicita": "Marketing",
+    "Servizi - Spese per Quote Associative": "Altro",
+    "Servizi - Generico": "Altro",
+    "Utenze - Acqua, luce e gas": "Spese Ufficio",
+    "Utenze - Internet e spese telefoniche": "Spese Ufficio",
+    "Tasse - Imposte e contributi": "Tasse",
+    "Risorse Umane - Salari e stipendi": "Stipendi",
+    "Risorse Umane - Rimborso spese": "Stipendi",
+    "Risorse Umane - TFR": "Stipendi",
+    "Intercompany in uscita - Trasferimento fondi IC in uscita": "Finanziamento IC",
+    "Intercompany in entrata - Traferimento fondi IC in entrata": "Finanziamento IC",
+    "Intercompany in entrata - Prestiti a soci in entrata": "Finanziamento IC",
+    "Immobilizzazioni - incremento - Immobilizzazioni immateriali (Brevetti e Software)": "Software",
+    "Trasporti - Pedaggi": "Altro",
+    "Trasporti - Carburanti": "Altro",
+    "Trasporti - Manutenzione veicoli": "Altro",
+    "Trasferte - Alberghi": "Altro",
+    "Altre spese - Generico": "Altro",
+    "Altre spese - Spese alimentari": "Altro",
+    "Altre spese - Spese non alimentari": "Altro",
+    "Altre spese - Catering e ristoranti": "Altro",
+    "Assicurazione - Generico": "Altro"
+  },
+  "_commento_ricavi": "Solo queste categorie sono ricavi da distribuire nei fondi FRS. I giroconti intercompany, i prestiti soci e i rimborsi ricevuti entrano sul conto ma non sono fatturato: distribuirli gonfierebbe i fondi di soldi che non sono mai stati guadagnati.",
+  "ricavi_frs": [
+    "Fattura Cliente",
+    "Mediazione Immobiliare",
+    "Saldo Commerciale"
+  ],
+  "_commento_forzate": "Regole che BATTONO la categoria assegnata da Banco BPM, perché l'etichetta automatica della banca in questi casi è dimostrabilmente sbagliata: i giroconti che COMO LAKE ESTATE SRL si fa da un proprio conto all'altro arrivano marcati come 'Ricavi'. Contarli come fatturato gonfia i fondi FRS con denaro che non e' mai stato guadagnato. Verificato: togliendoli, le settimane 6, 9 e 11 coincidono al centesimo con i dati inseriti a mano nella scheda Delta 2025/2026.",
+  "regole_forzate": [
+    {
+      "categoria": "Finanziamento IC",
+      "parole": [
+        "bon.da como lake estate srl",
+        "da como lake estate srl",
+        "giroconto",
+        "giriconto",
+        "finanziamento infruttifero",
+        "versamento soci"
+      ]
     }
   ]
 }
