@@ -538,6 +538,56 @@ def carica_regole(percorso=None):
     return {"regole": [], "default": "Altro"}
 
 
+# Те же города и коды, что в приложении: ключ выученного правила должен
+# совпадать до символа, иначе скрипт не узнает правило, созданное в браузере.
+CITTA_CODA = re.compile(
+    r"\b(LOS ANGELES|SAN FRANCISCO|NEW YORK|AMSTERDAM|LONDON|MILANO|COMO|DUBLIN|SINGAPORE|AUSTIN|"
+    r"SEATTLE|DALLAS|CANNES|MUNCHEN|DELFT|CHIASSO|LUGANO|ARESE|KARLSRUHE|RIGA|BURGAS|CAMDEN|"
+    r"WILMINGTON|SANTA CLARA|MOUNTAIN VIEW|TALLINN|VILNIUS|ROMA|TORINO|MENDRISIO|LAINATE|"
+    r"GALLARATE|CADORAGO|GRANDATE)\b.*$", re.I)
+
+
+def chiave_regola(cp):
+    """Ключ выученного правила: имя контрагента без ссылки на транзакцию.
+
+    В карточных платежах описание содержит уникальный код каждой операции и
+    город — «CANVA* I04746-48812417 CAMDEN». По такому ключу правило совпало бы
+    ровно с одним списанием из девяти.
+    """
+    n = str(cp or "").split("*")[0].split("#")[0].split("|")[0]
+    n = CITTA_CODA.sub("", n)
+    n = re.sub(r"\b[A-Za-z]*\d[A-Za-z0-9]*\b", " ", n)
+    n = " ".join(n.split()[:4])
+    return chiave_controparte(n)
+
+
+def unisci_apprese(regole, stato):
+    """Правила, подтверждённые человеком в приложении, — поверх остальных.
+
+    Приложение складывает их в `regoleApprese` внутри бэкапа. Если их не
+    подхватить, разбор в скрипте и разбор в браузере разойдутся: человек
+    поправил категорию в приложении, а скрипт при следующем закрытии снова
+    поставит свою.
+    """
+    apprese = {}
+    for r in ((stato or {}).get("regoleApprese") or []):
+        k = r.get("k") or chiave_regola(r.get("cp", ""))
+        if k and r.get("cat"):
+            apprese[k] = r["cat"]
+    regole = dict(regole or {})
+    regole["apprese"] = apprese
+    return regole
+
+
+def categoria_appresa(descrizione, regole):
+    """Категория, подтверждённая пользователем для этого контрагента."""
+    apprese = (regole or {}).get("apprese") or {}
+    if not apprese:
+        return None
+    k = chiave_regola(controparte(descrizione))
+    return apprese.get(k) if k else None
+
+
 def traduci_categoria_banca(cat_banca, descrizione, regole=None):
     """Категория из выписки Banco BPM → категория приложения.
 
@@ -546,6 +596,9 @@ def traduci_categoria_banca(cat_banca, descrizione, regole=None):
     развалится. Если перевода нет — падаем на разбор описания.
     """
     regole = regole or carica_regole()
+    appresa = categoria_appresa(descrizione, regole)
+    if appresa:
+        return appresa, "подтверждено пользователем"
     # автокатегория банка иногда просто неверна — сначала жёсткие правила по описанию
     d = _norm(descrizione)
     for r in regole.get("regole_forzate", []):
@@ -592,6 +645,9 @@ def e_ricavo(mov, regole=None):
 def classifica(descrizione, regole=None):
     """Категория по ключевым словам. Возвращает (категория, источник)."""
     regole = regole or carica_regole()
+    appresa = categoria_appresa(descrizione, regole)
+    if appresa:
+        return appresa, "подтверждено пользователем"
     d = _norm(descrizione)
     for r in regole.get("regole", []):
         for kw in r.get("parole", []):
@@ -671,7 +727,7 @@ def cmd_fondi(a):
 
 def cmd_estratto(a):
     stato = carica_stato(a.stato)
-    mov, meta = leggi_estratto(a.file, carica_regole(a.regole), a.anno)
+    mov, meta = leggi_estratto(a.file, unisci_apprese(carica_regole(a.regole), stato), a.anno)
     if a.json:
         print(json.dumps({"movimenti": mov, "meta": meta}, ensure_ascii=False, indent=2))
         return
@@ -697,14 +753,14 @@ def cmd_estratto(a):
 def cmd_chiusura(a):
     stato = carica_stato(a.stato) or {"weeks": [], "po": [], "bank": [], "categorie": [], "deltaEdits": {}}
     params = carica_parametri(stato)
-    mov, meta = leggi_estratto(a.estratto, carica_regole(a.regole), a.anno)
+    mov, meta = leggi_estratto(a.estratto, unisci_apprese(carica_regole(a.regole), stato), a.anno)
     if meta.get("errore"):
         print(f"❌ Не удалось разобрать выписку: {meta['errore']}")
         sys.exit(1)
 
     settimana = a.settimana or (max((m["settimana"] for m in mov if m["settimana"]), default=None))
     del_sett = [m for m in mov if m["settimana"] == settimana]
-    regole = carica_regole(a.regole)
+    regole = unisci_apprese(carica_regole(a.regole), stato)
     entrate = sum(m["in"] for m in del_sett)
     uscite = sum(m["out"] for m in del_sett)
     ricavi = sum(m["in"] for m in del_sett if e_ricavo(m, regole))
@@ -812,7 +868,7 @@ def cmd_periodo(a):
     """Отчёт по всем неделям сразу — для сверки квартала или года целиком."""
     stato = carica_stato(a.stato) or {}
     params = carica_parametri(stato)
-    regole = carica_regole(a.regole)
+    regole = unisci_apprese(carica_regole(a.regole), stato)
     mov, meta = leggi_estratto(a.estratto, regole, a.anno)
     if meta.get("errore"):
         print(f"❌ {meta['errore']}")
@@ -938,6 +994,7 @@ def cmd_periodo(a):
         nuovo["params"] = params
         nuovo["categorie"] = categorie_app(stato)
         nuovo.setdefault("debiti", [])
+        nuovo.setdefault("regoleApprese", (stato or {}).get("regoleApprese") or [])
         nuovo["bank"] = [{**{k: m[k] for k in ("date", "desc", "in", "out", "cat", "rec", "cp", "conto")},
                           **({"gir": m["gir"]} if m.get("gir") else {})} for m in mov]
         settimane_con_ricavi = sorted(k for k in per_sett if k in cal and per_sett[k]["ricavi"] > 0)

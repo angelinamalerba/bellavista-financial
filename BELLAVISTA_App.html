@@ -381,6 +381,11 @@
           <label style="font-size:11px;">Assegna a tutti i filtrati</label><br>
           <select id="b_bulk_cat"></select>
           <button onclick="assegnaCategoriaFiltrati()">Applica</button></div>
+        <div style="border-left:1px solid #ccc; padding-left:10px;">
+          <label style="display:flex; align-items:center; gap:5px; font-size:12px; font-weight:normal;"
+                 title="Ogni correzione diventa una regola per i prossimi estratti conto">
+            <input type="checkbox" id="b_impara" checked> 🧠 Impara dalle mie correzioni
+          </label></div>
         <div class="small" id="b_filtro_msg" style="margin-left:auto;"></div>
       </div>
       <div style="display:flex; gap:8px; align-items:end; flex-wrap:wrap; margin-top:8px;
@@ -491,6 +496,26 @@
         <div><button class="primary" onclick="addCategoria()">+ Aggiungi</button></div>
       </div>
     </div>
+    <div class="card">
+      <h2>🧠 Regole apprese dalle tue correzioni</h2>
+      <p class="small">Ogni volta che correggi la categoria di un movimento, l'app ricorda la controparte.
+      Al prossimo estratto conto quella regola viene applicata <b>prima</b> di ogni altra, perché è l'unica
+      confermata da chi conosce l'azienda. Le regole vivono nei dati e viaggiano nel backup JSON, quindi
+      crescono senza bisogno di modificare l'applicazione.</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+        <button class="primary" onclick="imparaDaiDatiAttuali()">🧠 Impara dalle categorie attuali</button>
+        <button onclick="exportRegoleApprese()">⬇ Esporta CSV</button>
+        <span class="small" id="appreseCount" style="margin-left:auto;"></span>
+      </div>
+      <div class="table-wrap">
+      <table id="appreseTable">
+        <thead><tr><th class="left" style="min-width:280px;">Controparte</th><th>Categoria</th>
+          <th>Movimenti</th><th>Appresa il</th><th></th></tr></thead>
+        <tbody id="appreseBody"></tbody>
+      </table>
+      </div>
+    </div>
+
     <div class="card">
       <h2>Elenco categorie</h2>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
@@ -677,10 +702,11 @@ function loadData(){
     const d = JSON.parse(raw);
     if(!d.categorie) d.categorie = DEFAULT_CATEGORIE.map(c=>({...c}));
     if(!d.debiti) d.debiti = [];
+    if(!d.regoleApprese) d.regoleApprese = [];
     d.params = {...DEFAULT_PARAMS, ...(d.params || {})};
     return d;
   }
-  return { weeks:[], po:[], bank:[], params: DEFAULT_PARAMS, bankBalances:{conto:0, libro:0}, categorie: DEFAULT_CATEGORIE.map(c=>({...c})), debiti:[] };
+  return { weeks:[], po:[], bank:[], params: DEFAULT_PARAMS, bankBalances:{conto:0, libro:0}, categorie: DEFAULT_CATEGORIE.map(c=>({...c})), debiti:[], regoleApprese:[] };
 }
 let DATA = loadData();
 function saveData(){ localStorage.setItem('bellavista_data', JSON.stringify(DATA)); }
@@ -1133,7 +1159,8 @@ function importJSON(input){
       bankBalances: d.bankBalances || {conto:0, libro:0},
       categorie: (Array.isArray(d.categorie) && d.categorie.length) ? d.categorie : DEFAULT_CATEGORIE.map(c=>({...c})),
       deltaEdits: d.deltaEdits || {},
-      debiti: d.debiti || []
+      debiti: d.debiti || [],
+      regoleApprese: d.regoleApprese || []
     };
     saveData();
     refreshDropdowns();
@@ -1683,6 +1710,10 @@ const MAPPA_BANCA_NORM = Object.fromEntries(
 
 function traduciCategoria(catBanca, desc){
   const d = (desc || '').toLowerCase();
+  // Prima di tutto quello che l'utente ha già confermato: è la fonte più
+  // autorevole, perché conosce l'azienda meglio di qualunque regola scritta.
+  const appresa = categoriaAppresa(controparte(desc));
+  if(appresa) return {cat: appresa, fonte: 'regola appresa'};
   for(const r of REGOLE_FORZATE){
     if(r.parole.some(p => d.includes(p))) return {cat: r.cat, fonte: 'regola sulla causale'};
   }
@@ -2049,6 +2080,149 @@ function exportDebitiDettaglio(){
   downloadCSV('Bellavista_Debiti_Crediti_Dettaglio.csv', rows);
 }
 
+// ---------- REGOLE APPRESE DALLE CORREZIONI ----------
+// Le regole scritte a mano (MAPPA_BANCA, REGOLE_FORZATE) coprono quello che si
+// sapeva quando sono state scritte. Ma i fornitori cambiano, e ogni volta che
+// si corregge una categoria a mano quella conoscenza andava persa: al prossimo
+// estratto conto lo stesso fornitore tornava nella casella sbagliata.
+//
+// Qui ogni correzione diventa una regola: controparte → categoria. Sono le più
+// autorevoli di tutte, perché confermate da chi conosce l'azienda, quindi
+// vengono consultate per prime. Vivono nei dati (e quindi nel backup JSON),
+// non nel codice, così crescono senza toccare l'applicazione.
+
+// I pagamenti con carta portano nella causale un riferimento diverso a ogni
+// transazione — «CANVA* I04746-48812417 CAMDEN» — e la città dell'esercente.
+// Usarli come chiave significherebbe imparare una regola valida per un solo
+// addebito: nove pagamenti Canva darebbero nove regole inutili. La chiave deve
+// essere il nome dell'esercente, non lo scontrino.
+const CITTA_CODA = /\b(LOS ANGELES|SAN FRANCISCO|NEW YORK|AMSTERDAM|LONDON|MILANO|COMO|DUBLIN|SINGAPORE|AUSTIN|SEATTLE|DALLAS|CANNES|MUNCHEN|DELFT|CHIASSO|LUGANO|ARESE|KARLSRUHE|RIGA|BURGAS|CAMDEN|WILMINGTON|SANTA CLARA|MOUNTAIN VIEW|TALLINN|VILNIUS|ROMA|TORINO|MENDRISIO|LAINATE|GALLARATE|CADORAGO|GRANDATE)\b.*$/i;
+function chiaveRegola(cp){
+  let n = String(cp || '').split(/[*#|]/)[0];          // via il riferimento della transazione
+  n = n.replace(CITTA_CODA, '');                        // via la città dell'esercente
+  n = n.replace(/\b[A-Z]*\d[A-Z0-9]*\b/gi, ' ');        // via i codici alfanumerici
+  n = n.split(/\s+/).filter(Boolean).slice(0, 4).join(' ');
+  return chiaveControparte(n);
+}
+
+function categoriaAppresa(cp){
+  const k = chiaveRegola(cp);
+  if(!k) return null;
+  const r = (DATA.regoleApprese || []).find(x => x.k === k);
+  return r ? r.cat : null;
+}
+
+function apprendimentoAttivo(){
+  const el = document.getElementById('b_impara');
+  return el ? el.checked : true;
+}
+
+// Registra o aggiorna la regola per una controparte. Restituisce quanti altri
+// movimenti della stessa controparte hanno ancora una categoria diversa: sono
+// quelli che l'utente può allineare subito.
+function imparaRegola(cp, cat){
+  const k = chiaveRegola(cp);
+  if(!k || !cat) return null;
+  if(!DATA.regoleApprese) DATA.regoleApprese = [];
+  const esistente = DATA.regoleApprese.find(x => x.k === k);
+  if(esistente){
+    esistente.cat = cat;
+    esistente.cp = cp;
+    esistente.quando = new Date().toISOString().slice(0,10);
+  } else {
+    DATA.regoleApprese.push({k, cp, cat, quando: new Date().toISOString().slice(0,10)});
+  }
+  return DATA.bank.filter(m => chiaveRegola(m.cp) === k && m.cat !== cat && !m.gir).length;
+}
+
+function allineaControparte(cp, cat){
+  const k = chiaveRegola(cp);
+  let n = 0;
+  DATA.bank.forEach(m => {
+    if(chiaveRegola(m.cp) === k && m.cat !== cat && !m.gir){ m.cat = cat; n++; }
+  });
+  return n;
+}
+
+// Deriva le regole da come i movimenti sono categorizzati adesso: utile la
+// prima volta, per non dover riconfermare a mano quello che è già a posto.
+// Si impara solo dalle controparti categorizzate in modo coerente — se la
+// stessa controparte compare in due categorie diverse non c'è niente da
+// imparare, c'è una decisione da prendere.
+function imparaDaiDatiAttuali(){
+  const per = {};
+  DATA.bank.forEach(m => {
+    const k = chiaveRegola(m.cp);
+    if(!k || m.gir || !m.cat) return;
+    (per[k] = per[k] || {cp: m.cp, cat: {}, n: 0});
+    per[k].cat[m.cat] = (per[k].cat[m.cat] || 0) + 1;
+    per[k].n++;
+  });
+  const coerenti = Object.entries(per).filter(([, v]) => Object.keys(v.cat).length === 1);
+  const ambigue = Object.entries(per).filter(([, v]) => Object.keys(v.cat).length > 1);
+  if(coerenti.length === 0){ alert('Non c\'è niente da imparare: nessuna controparte riconoscibile.'); return; }
+  if(!confirm(`Imparare ${coerenti.length} regole dalle categorie attuali?\n\n` +
+              'Verranno ricordate le controparti che oggi hanno una categoria sola.' +
+              (ambigue.length ? `\n\n${ambigue.length} controparti compaiono in categorie diverse e vengono ` +
+                                'saltate: lì serve una Sua decisione, non una regola.' : ''))) return;
+  if(!DATA.regoleApprese) DATA.regoleApprese = [];
+  let nuove = 0, agg = 0;
+  coerenti.forEach(([k, v]) => {
+    const cat = Object.keys(v.cat)[0];
+    const e = DATA.regoleApprese.find(x => x.k === k);
+    if(e){ if(e.cat !== cat){ e.cat = cat; agg++; } }
+    else { DATA.regoleApprese.push({k, cp: v.cp, cat, quando: new Date().toISOString().slice(0,10)}); nuove++; }
+  });
+  saveData();
+  renderRegoleApprese();
+  alert(`Imparate ${nuove} regole nuove${agg ? `, aggiornate ${agg}` : ''}.` +
+        (ambigue.length ? `\n\nSaltate ${ambigue.length} controparti con categorie discordanti:\n` +
+          ambigue.slice(0,6).map(([, v]) => `• ${v.cp}: ${Object.keys(v.cat).join(' / ')}`).join('\n') : ''));
+}
+
+function dimenticaRegola(k){
+  const r = (DATA.regoleApprese || []).find(x => x.k === k);
+  if(!r) return;
+  if(!confirm(`Dimenticare la regola «${r.cp}» → ${r.cat}?\n\n` +
+              'I movimenti già categorizzati restano come sono; cambia solo il comportamento futuro.')) return;
+  DATA.regoleApprese = DATA.regoleApprese.filter(x => x.k !== k);
+  saveData();
+  renderRegoleApprese();
+}
+
+function renderRegoleApprese(){
+  const body = document.getElementById('appreseBody');
+  if(!body) return;
+  const regole = (DATA.regoleApprese || []).slice()
+    .sort((a, b) => a.cat.localeCompare(b.cat) || a.cp.localeCompare(b.cp));
+  body.innerHTML = '';
+  if(regole.length === 0){
+    body.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#999;">
+      Nessuna regola appresa. Correggi una categoria nei Movimenti, oppure usa
+      «Impara dalle categorie attuali» per partire da quello che è già a posto.</td></tr>`;
+  }
+  regole.forEach(r => {
+    const usi = DATA.bank.filter(m => chiaveRegola(m.cp) === r.k).length;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td class="left">${r.cp}</td>
+       <td>${r.cat}</td>
+       <td>${usi || '—'}</td>
+       <td class="small">${r.quando || ''}</td>
+       <td><button class="danger" onclick="dimenticaRegola(${JSON.stringify(r.k).replace(/"/g,'&quot;')})">✕</button></td>`;
+    body.appendChild(tr);
+  });
+  const c = document.getElementById('appreseCount');
+  if(c) c.textContent = regole.length ? `${regole.length} regole apprese` : '';
+}
+
+function exportRegoleApprese(){
+  const rows = [['Controparte','Categoria','Movimenti in archivio','Appresa il']];
+  (DATA.regoleApprese || []).forEach(r =>
+    rows.push([r.cp, r.cat, DATA.bank.filter(m => chiaveRegola(m.cp) === r.k).length, r.quando || '']));
+  downloadCSV('Bellavista_Regole_Apprese.csv', rows);
+}
+
 // ---------- SELEZIONE MULTIPLA DEI MOVIMENTI ----------
 // Riconciliare 895 movimenti uno alla volta non è lavoro, è battitura. La
 // selezione vive fuori dal disegno della tabella (in un Set di indici) perché
@@ -2121,7 +2295,19 @@ function applicaRiconciliazione(ambito){
 // per Categoria.
 
 function setBankCat(idx, v){
-  DATA.bank[idx].cat = v;
+  const m = DATA.bank[idx];
+  m.cat = v;
+  if(apprendimentoAttivo() && m.cp){
+    const altri = imparaRegola(m.cp, v);
+    if(altri > 0 && confirm(`Ricordato: «${m.cp}» → ${v}.\n\n` +
+        `Ci sono altri ${altri} movimenti della stessa controparte con una categoria diversa. ` +
+        'Allinearli adesso?')) {
+      const n = allineaControparte(m.cp, v);
+      saveData(); renderBanca();
+      alert(`Aggiornati ${n} movimenti.`);
+      return;
+    }
+  }
   saveData();
   renderBanca();
 }
@@ -2161,6 +2347,11 @@ function assegnaCategoriaFiltrati(){
   if(!confirm(`Assegnare la categoria «${nuova}» a ${scelti.length} movimenti filtrati?\n\n` +
               'Riguarda solo le righe attualmente visibili.')) return;
   scelti.forEach(({idx}) => DATA.bank[idx].cat = nuova);
+  if(apprendimentoAttivo()){
+    const cp = [...new Set(scelti.map(({m}) => m.cp).filter(Boolean))];
+    cp.forEach(c => imparaRegola(c, nuova));
+    if(cp.length) console.info(`Apprese ${cp.length} regole da questa assegnazione.`);
+  }
   saveData();
   renderBanca();
 }
@@ -2182,6 +2373,7 @@ function refreshDropdowns(){
 }
 
 function renderCategorie(){
+  renderRegoleApprese();
   const body = document.getElementById('catBody');
   if(!body) return;
   body.innerHTML = '';

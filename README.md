@@ -112,6 +112,30 @@ Trasferte** e **Sanzioni**. Senza di quelle un quarto dei movimenti finiva in
 Se si modifica una regola va aggiornata in entrambi i posti, altrimenti importare
 il CSV nell'app e farlo elaborare allo skill darebbe risultati diversi.
 
+## Regole apprese dalle correzioni
+
+Le regole scritte a mano coprono quello che si sapeva quando sono state scritte,
+ma i fornitori cambiano. Ogni volta che si corregge la categoria di un movimento
+l'app registra una regola **controparte → categoria** e propone di allineare gli
+altri movimenti della stessa controparte. Al prossimo estratto conto quella
+regola viene applicata **prima di tutte le altre**, perché è l'unica confermata
+da chi conosce l'azienda.
+
+La chiave è il nome dell'esercente, non la causale: i pagamenti con carta
+contengono un riferimento diverso a ogni transazione («CANVA* I04746-48812417
+CAMDEN») e usarlo come chiave darebbe una regola valida per un solo addebito.
+
+Il pulsante **🧠 Impara dalle categorie attuali** (scheda Categorie Spese) deriva
+le regole da com'è categorizzato l'archivio oggi, saltando le controparti che
+compaiono in categorie diverse — lì serve una decisione, non una regola. La
+scheda elenca le regole apprese, quanti movimenti coprono e permette di
+dimenticarle.
+
+Le regole vivono nei dati e viaggiano nel backup JSON: **anche lo skill le
+rispetta**, quindi correggere in app e far elaborare allo skill dà lo stesso
+risultato. L'interruttore «🧠 Impara dalle mie correzioni» sopra i movimenti
+disattiva l'apprendimento quando si vuole fare una correzione una tantum.
+
 ## Correggere le categorie dei movimenti
 
 Nella scheda Riconciliazione Banca la categoria di ogni movimento è ora un menu
