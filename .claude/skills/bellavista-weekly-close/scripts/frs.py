@@ -386,6 +386,59 @@ def abbina_partite_giro(mov, giorni=120):
     return coppie
 
 
+def abbina_parziali(mov, giorni=120, max_pezzi=3):
+    """Accoppia un pagamento sbagliato con i rientri che lo restituiscono a rate.
+
+    La restituzione non arriva sempre in un colpo solo: un doppio bonifico da
+    19.000 può tornare come 10.000 più 9.000 a due giorni di distanza. Con il
+    solo abbinamento uno-a-uno quelle righe restano scollegate e l'uscita
+    doppia continua a pesare come spesa vera.
+
+    Qui si richiede la stessa controparte su tutte le righe e la somma esatta
+    al centesimo: due condizioni che insieme rendono improbabile un abbinamento
+    casuale, molto più della sola coincidenza di importo.
+    """
+    import itertools
+    liberi = [m for m in mov if not m.get("gir")]
+    per_cp = {}
+    for m in liberi:
+        if m["cp"]:
+            per_cp.setdefault(chiave_controparte(m["cp"]), []).append(m)
+
+    coppie = []
+    for cp, gruppo in per_cp.items():
+        usati = set()
+        for singolo in sorted(gruppo, key=lambda m: (-max(m["in"], m["out"]), m["date"])):
+            if id(singolo) in usati or singolo.get("gir"):
+                continue
+            importo = singolo["out"] or singolo["in"]
+            verso_opposto = "in" if singolo["out"] else "out"
+            d0 = datetime.date.fromisoformat(singolo["date"])
+            candidati = [m for m in gruppo
+                         if id(m) not in usati and not m.get("gir") and m is not singolo
+                         and m[verso_opposto] > 0
+                         and 0 <= (datetime.date.fromisoformat(m["date"]) - d0).days <= giorni]
+            trovata = None
+            for n in range(2, max_pezzi + 1):
+                for combo in itertools.combinations(candidati, n):
+                    if abs(sum(c[verso_opposto] for c in combo) - importo) < 0.01:
+                        trovata = combo
+                        break
+                if trovata:
+                    break
+            if not trovata:
+                continue
+            idc = f"R{len(coppie) + 1:03d}"
+            for m in (singolo,) + tuple(trovata):
+                usati.add(id(m))
+                m["gir"] = idc
+                m["cat"] = "Partita di Giro"
+                m["rec"] = "S"
+                m["fonte_cat"] = f"restituzione a rate: {len(trovata)} rientri da {cp}"
+            coppie.append({"origine": singolo, "rientri": list(trovata), "importo": importo})
+    return coppie
+
+
 def leggi_estratto(percorso, regole=None, anno=None):
     """CSV Banco BPM → список движений с датой, суммой, неделей и категорией."""
     raw = Path(percorso).read_bytes()
@@ -466,8 +519,10 @@ def leggi_estratto(percorso, regole=None, anno=None):
     movimenti.sort(key=lambda m: m["date"])
     coppie, spaiati = abbina_giroconti(movimenti)
     partite = abbina_partite_giro(movimenti)
+    parziali = abbina_parziali(movimenti)
     return movimenti, {"separatore": sep, "colonne": mapping, "righe_scartate": len(scartate),
-                       "giroconti": coppie, "giroconti_spaiati": spaiati, "partite_giro": partite}
+                       "giroconti": coppie, "giroconti_spaiati": spaiati,
+                       "partite_giro": partite, "parziali": parziali}
 
 
 # --------------------------------------------------------- классификация
@@ -816,7 +871,8 @@ def cmd_periodo(a):
 
     gir = meta.get("giroconti", [])
     par = meta.get("partite_giro", [])
-    if gir or par:
+    prz = meta.get("parziali", [])
+    if gir or par or prz:
         out += ["", "## 5. Movimenti incrociati (si annullano a vicenda)", ""]
     if gir:
         out += [f"**Giroconti fra i conti della società: {len(gir)} coppie, "
@@ -832,6 +888,14 @@ def cmd_periodo(a):
         for p in par:
             out.append(f"| {p['entrata']['gir']} | {p['entrata']['date']} | {p['uscita']['date']} | "
                        f"{p['giorni']} | {eur(p['importo'])} | {p['entrata']['desc'][:48]} |")
+
+    if prz:
+        out += ["", f"**Restituzioni a rate: {len(prz)}, {eur(sum(p['importo'] for p in prz))}**", "",
+                "| ID | Uscita | Importo | Rientri | Controparte |", "|---|---|---|---|---|"]
+        for p in prz:
+            rientri = " + ".join(f"{eur(r['in'] or r['out'])} il {r['date']}" for r in p["rientri"])
+            out.append(f"| {p['origine']['gir']} | {p['origine']['date']} | {eur(p['importo'])} | "
+                       f"{rientri} | {p['origine']['cp']} |")
 
     senza = [m for m in mov if "нет в mappa_banca" in m["fonte_cat"] or m["fonte_cat"] == "не распознано"]
     out += ["", "## 6. Da rivedere", ""]

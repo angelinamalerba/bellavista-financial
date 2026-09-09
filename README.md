@@ -74,10 +74,14 @@ segna come riconciliati; l'abbinamento parte già da solo dopo l'import. Le due
 gambe finiscono nelle categorie «Giroconto Interno» o «Partita di Giro», che non
 contano né come ricavo né come debito.
 
-Le condizioni sono strette apposta, perché due operazioni vere possono avere lo
-stesso importo per caso: per un giroconto servono conti diversi, importo uguale
-al centesimo e pochi giorni di distanza; per una partita di giro l'importo
+Sono riconosciuti tre casi. **Giroconto fra conti**: conti diversi, importo
+uguale al centesimo, pochi giorni di distanza. **Partita di giro**: importo
 identico più la parola «storno» o la stessa controparte su entrambe le righe.
+**Restituzione a rate**: un pagamento sbagliato che rientra spezzato in più
+bonifici, con la stessa controparte su tutte le righe e la somma esatta.
+
+Le condizioni sono strette apposta, perché due operazioni vere possono avere lo
+stesso importo per caso.
 
 Perché funzioni, in fase di import va mappata anche la colonna **Conto /
 Rapporto**: le ultime quattro cifre compaiono poi accanto a ogni movimento,

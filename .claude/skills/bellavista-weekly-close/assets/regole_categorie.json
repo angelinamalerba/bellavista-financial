@@ -237,7 +237,7 @@
     "Mediazione Immobiliare",
     "Saldo Commerciale"
   ],
-  "_commento_forzate": "Regole che BATTONO la categoria assegnata da Banco BPM, perché l'etichetta automatica della banca in questi casi è dimostrabilmente sbagliata: i giroconti che COMO LAKE ESTATE SRL si fa da un proprio conto all'altro arrivano marcati come 'Ricavi'. Contarli come fatturato gonfia i fondi FRS con denaro che non e' mai stato guadagnato. Verificato: togliendoli, le settimane 6, 9 e 11 coincidono al centesimo con i dati inseriti a mano nella scheda Delta 2025/2026. I movimenti con CBV INTERIOR GALLERY sono finanziamenti infruttiferi infragruppo (confermato dalla titolare), non fatturato: vanno in Finanziamento IC in entrata come in uscita.",
+  "_commento_forzate": "Regole che BATTONO la categoria assegnata da Banco BPM, perché l'etichetta automatica della banca in questi casi è dimostrabilmente sbagliata: i giroconti che COMO LAKE ESTATE SRL si fa da un proprio conto all'altro arrivano marcati come 'Ricavi'. Contarli come fatturato gonfia i fondi FRS con denaro che non e' mai stato guadagnato. Verificato: togliendoli, le settimane 6, 9 e 11 coincidono al centesimo con i dati inseriti a mano nella scheda Delta 2025/2026. I movimenti con CBV INTERIOR GALLERY sono finanziamenti infruttiferi infragruppo (confermato dalla titolare), non fatturato: vanno in Finanziamento IC in entrata come in uscita. MAYOROVA KSENIA: la banca mette i pagamenti da 19.000 in «Altre spese - Generico» e quelli da 1.000 in «Fornitori», pur essendo lo stesso soggetto; si uniformano a Fattura Fornitore.",
   "regole_forzate": [
     {
       "categoria": "Finanziamento IC",
@@ -251,6 +251,12 @@
         "cbv interior gallery",
         "cbv project",
         "cbv "
+      ]
+    },
+    {
+      "categoria": "Fattura Fornitore",
+      "parole": [
+        "mayorova ksenia"
       ]
     }
   ]

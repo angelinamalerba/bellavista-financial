@@ -1593,14 +1593,48 @@ function incrociaMovimenti(){
     [e, u].forEach(m => { m.gir = id; m.cat = 'Partita di Giro'; m.rec = 'S'; });
   });
 
-  return {giroconti: nGir, partite: nPar};
+  // 3) restituzioni a rate: un pagamento sbagliato può tornare indietro spezzato
+  //    in più bonifici. Con il solo abbinamento uno-a-uno resterebbe scollegato
+  //    e l'uscita doppia continuerebbe a pesare come spesa vera. Si richiede la
+  //    stessa controparte su tutte le righe e la somma esatta al centesimo.
+  let nPrz = 0;
+  const perCp = {};
+  DATA.bank.forEach(m => {
+    if(!m.gir && m.cp) (perCp[chiaveControparte(m.cp)] = perCp[chiaveControparte(m.cp)] || []).push(m);
+  });
+  Object.values(perCp).forEach(gruppo => {
+    const ordinati = gruppo.slice().sort((a, b) =>
+      Math.max(b.in, b.out) - Math.max(a.in, a.out) || String(a.date).localeCompare(b.date));
+    ordinati.forEach(uno => {
+      if(uno.gir) return;
+      const importo = uno.out || uno.in;
+      const verso = uno.out ? 'in' : 'out';
+      const cand = gruppo.filter(m => !m.gir && m !== uno && m[verso] > 0 &&
+        giorniTra(uno.date, m.date) >= 0 && giorniTra(uno.date, m.date) <= 120);
+      let trovata = null;
+      for(let i = 0; i < cand.length && !trovata; i++){
+        for(let j = i + 1; j < cand.length && !trovata; j++){
+          if(Math.abs(cand[i][verso] + cand[j][verso] - importo) < 0.01) trovata = [cand[i], cand[j]];
+          else for(let k = j + 1; k < cand.length && !trovata; k++){
+            if(Math.abs(cand[i][verso] + cand[j][verso] + cand[k][verso] - importo) < 0.01)
+              trovata = [cand[i], cand[j], cand[k]];
+          }
+        }
+      }
+      if(!trovata) return;
+      const id = 'R' + String(++nPrz).padStart(3, '0');
+      [uno, ...trovata].forEach(m => { m.gir = id; m.cat = 'Partita di Giro'; m.rec = 'S'; });
+    });
+  });
+
+  return {giroconti: nGir, partite: nPar, parziali: nPrz};
 }
 
 function incrociaOra(){
   const e = incrociaMovimenti();
   saveData();
   renderBanca();
-  alert(`Incrociati ${e.giroconti} giroconti fra conti e ${e.partite} partite di giro.\n\n` +
+  alert(`Incrociati ${e.giroconti} giroconti fra conti, ${e.partite} partite di giro e ${e.parziali} restituzioni a rate.\n\n` +
         'I movimenti abbinati sono marcati come riconciliati e non contano più né come ricavo né come debito.');
 }
 
@@ -1616,15 +1650,17 @@ function renderIncroci(){
   let totale = 0;
   chiavi.forEach(k => {
     const g = gruppi[k];
-    const entrata = g.find(m => m.in > 0), uscita = g.find(m => m.out > 0);
-    const importo = entrata ? entrata.in : (uscita ? uscita.out : 0);
+    const entrate = g.filter(m => m.in > 0), uscite = g.filter(m => m.out > 0);
+    const entrata = entrate[0], uscita = uscite[0];
+    const importo = Math.max(entrate.reduce((s2, m) => s2 + m.in, 0), uscite.reduce((s2, m) => s2 + m.out, 0));
+    const piu = g.length > 2;
     totale += importo;
     const tr = document.createElement('tr');
     tr.innerHTML =
       `<td><b>${k}</b></td>
-       <td>${k[0] === 'G' ? 'Giroconto fra conti' : 'Partita di giro'}</td>
-       <td>${uscita ? `${uscita.date} · …${uscita.conto || '?'}` : '—'}</td>
-       <td>${entrata ? `${entrata.date} · …${entrata.conto || '?'}` : '—'}</td>
+       <td>${k[0] === 'G' ? 'Giroconto fra conti' : (k[0] === 'R' ? 'Restituzione a rate' : 'Partita di giro')}</td>
+       <td>${uscite.map(m => `${m.date} · …${m.conto || '?'}`).join('<br>') || '—'}</td>
+       <td>${entrate.map(m => `${m.date}${piu ? ' · ' + eur(m.in) : ' · …' + (m.conto || '?')}`).join('<br>') || '—'}</td>
        <td>${eur(importo)}</td>
        <td class="left small">${(entrata || uscita).desc.slice(0, 70)}</td>`;
     body.appendChild(tr);
@@ -2207,7 +2243,7 @@ function importCSVRows(){
   document.getElementById('csv_preview_wrap').style.display = 'none';
   CSV_ROWS = []; CSV_HEADERS = [];
   alert(`✅ ${checked.length} movimenti importati.\n\n` +
-        `Incrociati automaticamente: ${esito.giroconti} giroconti fra conti e ${esito.partite} partite di giro.\n\n` +
+        `Incrociati automaticamente: ${esito.giroconti} giroconti fra conti, ${esito.partite} partite di giro e ${esito.parziali} restituzioni a rate.\n\n` +
         'Controlla la categoria e la riconciliazione nella tabella sottostante.');
 }
 
