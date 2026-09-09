@@ -51,6 +51,24 @@
   .kpi.ok{background:#E8F8EF;}
   .check-ok{color:var(--green); font-weight:bold;}
   .check-bad{color:var(--red); font-weight:bold;}
+  /* Le tabelle larghe (distribuzione, delta, movimenti) scorrono dentro il
+     proprio contenitore invece di finire fuori schermo e restare irraggiungibili.
+     Lo scroll sta sulla tabella e non sulla card, così titolo e pulsanti
+     restano fermi mentre si scorre. */
+  .table-wrap{overflow-x:auto; margin-top:14px;}
+  .table-wrap table{margin-top:0;}
+  /* CHECK è il controllo di quadratura dei fondi: deve restare visibile anche
+     quando si scorre a destra, altrimenti l'unico dato da sorvegliare è quello
+     che sparisce per primo. Insieme a lui resta la colonna dei comandi. */
+  #distTable tbody tr{background:#fff;}
+  #distTable tbody tr:nth-child(even){background:#fafafa;}
+  #distTable tbody td{background:inherit;}
+  #distTable th:last-child, #distTable td:last-child{position:sticky; right:0; min-width:46px;}
+  #distTable th:nth-last-child(2), #distTable td:nth-last-child(2){position:sticky; right:46px;
+    min-width:92px; box-shadow:-8px 0 8px -8px rgba(0,0,0,0.28);}
+  #distTable thead th:last-child, #distTable thead th:nth-last-child(2){background:var(--navy); z-index:3;}
+  #distTable tbody td:last-child, #distTable tbody td:nth-last-child(2){z-index:2;}
+  #distTable tfoot td:last-child, #distTable tfoot td:nth-last-child(2){background:var(--lightgold); z-index:2;}
   .small{font-size:11px; color:#777;}
   .actions{display:flex; gap:6px; justify-content:center;}
   .pill{display:inline-block; background:var(--lightgold); border-radius:4px; padding:2px 6px; font-size:10px; margin-left:6px;}
@@ -122,7 +140,7 @@
     <div class="card">
       <h2>Inserisci ricavi della settimana</h2>
       <div class="form-grid">
-        <div><label>Settimana (lunedì)</label><input type="date" id="d_date"></div>
+        <div><label>Settimana (giovedì — inizio settimana FRS)</label><input type="date" id="d_date"><div class="small" id="d_week_hint"></div></div>
         <div><label>Ricavi (€)</label><input type="number" id="d_amount" min="0" step="0.01"></div>
         <div><button class="primary" onclick="addWeek()">+ Aggiungi settimana</button></div>
       </div>
@@ -130,6 +148,7 @@
     <div class="card">
       <h2>Distribuzione Fondi</h2>
       <button class="primary" onclick="exportDistribuzione()">⬇ Esporta in Excel (CSV)</button>
+      <div class="table-wrap">
       <table id="distTable">
         <thead><tr>
           <th>Settimana</th><th>Ricavi</th>
@@ -141,6 +160,7 @@
         <tbody id="distBody"></tbody>
         <tfoot id="distFoot"></tfoot>
       </table>
+      </div>
     </div>
   </section>
 
@@ -182,6 +202,7 @@
     <div class="card">
       <h2>Registro Ordini</h2>
       <button class="primary" onclick="exportPO()">⬇ Esporta in Excel (CSV)</button>
+      <div class="table-wrap">
       <table>
         <thead><tr>
           <th>#</th><th>Data</th><th>Fornitore</th><th>Descrizione</th><th>Importo</th><th>Categoria</th>
@@ -190,6 +211,7 @@
         <tbody id="poBody"></tbody>
         <tfoot id="poFoot"></tfoot>
       </table>
+      </div>
     </div>
   </section>
 
@@ -252,6 +274,7 @@
           <span id="csv_count_msg" class="small"></span>
         </div>
         <div style="overflow-x:auto;">
+        <div class="table-wrap">
         <table id="csv_preview_table">
           <thead><tr>
             <th>✓</th><th>Stato</th><th>Data</th><th>Descrizione</th>
@@ -259,6 +282,7 @@
           </tr></thead>
           <tbody id="csv_preview_body"></tbody>
         </table>
+        </div>
         </div>
       </div>
     </div>
@@ -289,17 +313,20 @@
     <div class="card">
       <h2>Movimenti</h2>
       <button class="primary" onclick="exportBanca()">⬇ Esporta in Excel (CSV)</button>
+      <div class="table-wrap">
       <table>
         <thead><tr><th>#</th><th>Data</th><th>Causale</th><th>Entrata</th><th>Uscita</th><th>Categoria</th><th>Riconc.</th><th></th></tr></thead>
         <tbody id="bankBody"></tbody>
         <tfoot id="bankFoot"></tfoot>
       </table>
+      </div>
       <p id="bancaCheck" style="margin-top:14px; font-size:14px;"></p>
     </div>
 
     <div class="card">
       <h2>Vista Settimanale — Movimenti per Settimana FRS</h2>
       <div style="overflow-x:auto;">
+        <div class="table-wrap">
         <table id="bankWeekTable">
           <thead><tr>
             <th>Sett.</th><th>Periodo 2026</th>
@@ -308,16 +335,19 @@
           </tr></thead>
           <tbody id="bankWeekBody"></tbody>
         </table>
+        </div>
       </div>
     </div>
 
     <div class="card">
       <h2>Vista per Categoria — Totali dal estratto conto</h2>
       <div style="overflow-x:auto;">
+        <div class="table-wrap">
         <table id="bankCatTable">
           <thead><tr><th>Categoria / Sottocategoria</th><th>Entrate</th><th>Uscite</th><th>Netto</th><th>N. mov.</th></tr></thead>
           <tbody id="bankCatBody"></tbody>
         </table>
+        </div>
       </div>
     </div>
   </section>
@@ -363,10 +393,12 @@
         <button class="primary" onclick="exportCategorie()">⬇ Esporta CSV</button>
         <button class="primary" style="background:#7F8C8D;" onclick="resetCategorie()">↺ Ripristina default</button>
       </div>
+      <div class="table-wrap">
       <table>
         <thead><tr><th>#</th><th class="left" style="min-width:240px;">Nome categoria</th><th>Tipo</th><th>Usata in</th><th></th></tr></thead>
         <tbody id="catBody"></tbody>
       </table>
+      </div>
     </div>
   </section>
 
@@ -375,10 +407,12 @@
     <div class="card">
       <h2>Parametri FRS (modello di distribuzione fondi)</h2>
       <p class="small">Tutte le percentuali sul margine sommano esattamente al 100% — modificarle con cautela: la somma deve restare 100%.</p>
+      <div class="table-wrap">
       <table>
         <thead><tr><th>Fondo</th><th>% su Ricavi</th><th>% su Margine</th></tr></thead>
         <tbody id="paramBody"></tbody>
       </table>
+      </div>
       <button class="primary" style="margin-top:14px;" onclick="saveParams()">Salva parametri</button>
       <span id="paramCheckMsg" style="margin-left:14px;"></span>
     </div>
@@ -410,6 +444,7 @@
       </div>
       <p class="small">Le celle <b>Importo 2026</b> e <b>Descrizione</b> sono modificabili. Clicca <b>Salva</b> su ogni riga per confermare.</p>
       <div style="overflow-x:auto;">
+      <div class="table-wrap">
       <table id="deltaTable">
         <thead><tr>
           <th>#</th>
@@ -422,6 +457,7 @@
         <tbody id="deltaBody"></tbody>
         <tfoot id="deltaFoot"></tfoot>
       </table>
+      </div>
       </div>
     </div>
   </section>
@@ -516,6 +552,55 @@ function calcWeek(amount){
   const totMargine = iva+retrib+dividendi+hr+ceo+sviluppo+riserve+rimborso+formazione+affitti+so;
   const check = amount - totDiretti - totMargine;
   return {agenti,partner,dirigenza,marketing,totDiretti,margine,iva,retrib,dividendi,hr,ceo,sviluppo,riserve,rimborso,formazione,affitti,so,totMargine,check};
+}
+
+// ---------- SETTIMANE FRS ----------
+// La settimana 1 inizia il primo giovedì di gennaio: è la regola con cui è
+// costruito DELTA_BASE (2025 → 02/01, 2026 → 01/01). Le settimane vanno quindi
+// da giovedì a mercoledì, non da lunedì: è l'errore di inserimento più facile
+// da fare, perciò la data scelta viene commentata subito sotto al campo.
+function inizioAnnoFRS(anno){
+  const d = new Date(anno, 0, 1);
+  while(d.getDay() !== 4) d.setDate(d.getDate() + 1); // 4 = giovedì
+  return d;
+}
+
+function settimanaFRS(dataISO){
+  const [y, m, g] = dataISO.split('-').map(Number);
+  const scelta = new Date(y, m - 1, g);
+  for(const anno of [y, y - 1]){
+    const inizioAnno = inizioAnnoFRS(anno);
+    const giorni = Math.round((scelta - inizioAnno) / 86400000);
+    if(giorni >= 0 && giorni < 364){
+      const w = Math.floor(giorni / 7) + 1;
+      const start = new Date(inizioAnno);
+      start.setDate(start.getDate() + (w - 1) * 7);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 6);
+      return {w, start, end, scelta};
+    }
+  }
+  return null;
+}
+
+const ddmmyyyy = d => String(d.getDate()).padStart(2,'0') + '.' +
+  String(d.getMonth() + 1).padStart(2,'0') + '.' + d.getFullYear();
+
+function aggiornaHintSettimana(){
+  const el = document.getElementById('d_week_hint');
+  if(!el) return;
+  const val = document.getElementById('d_date').value;
+  if(!val){ el.textContent = ''; return; }
+  const r = settimanaFRS(val);
+  if(!r){
+    el.textContent = '⚠️ Data fuori dalle 52 settimane FRS.';
+    el.style.color = 'var(--red)';
+    return;
+  }
+  const esatta = r.scelta.getTime() === r.start.getTime();
+  el.innerHTML = `Settimana FRS <b>${r.w}</b> · ${ddmmyyyy(r.start)} – ${ddmmyyyy(r.end)}` +
+    (esatta ? '' : ` — inizia giovedì ${ddmmyyyy(r.start)}`);
+  el.style.color = esatta ? 'var(--green)' : '#8A6D1F';
 }
 
 function addWeek(){
@@ -1589,6 +1674,9 @@ document.getElementById('b_saldoLibro').value = DATA.bankBalances.libro || '';
 renderBanca();
 renderParams();
 renderDashboard();
+
+document.getElementById('d_date').addEventListener('change', aggiornaHintSettimana);
+aggiornaHintSettimana();
 
 // persist bank balances on change
 ['b_saldoConto','b_saldoLibro'].forEach(id=>{
