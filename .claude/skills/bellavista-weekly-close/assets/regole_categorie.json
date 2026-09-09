@@ -237,7 +237,7 @@
     "Mediazione Immobiliare",
     "Saldo Commerciale"
   ],
-  "_commento_forzate": "Regole che BATTONO la categoria assegnata da Banco BPM, perché l'etichetta automatica della banca in questi casi è dimostrabilmente sbagliata: i giroconti che COMO LAKE ESTATE SRL si fa da un proprio conto all'altro arrivano marcati come 'Ricavi'. Contarli come fatturato gonfia i fondi FRS con denaro che non e' mai stato guadagnato. Verificato: togliendoli, le settimane 6, 9 e 11 coincidono al centesimo con i dati inseriti a mano nella scheda Delta 2025/2026. I movimenti con CBV INTERIOR GALLERY sono finanziamenti infruttiferi infragruppo (confermato dalla titolare), non fatturato: vanno in Finanziamento IC in entrata come in uscita. MAYOROVA KSENIA: la banca mette i pagamenti da 19.000 in «Altre spese - Generico» e quelli da 1.000 in «Fornitori», pur essendo lo stesso soggetto; si uniformano a Fattura Fornitore. Fornitori identificati dalla titolare: JamesEdition e ENT Graphic sono marketing, APIMO e DigitalOcean sono software (la banca li mette rispettivamente in «Carburanti» e «Alberghi»), Lucia Rovelli e' saldo provvigioni, Liubov Petelina fattura freelance, la sanzione e' antiriciclaggio. Shell Mobility e' la carta carburante aziendale, ma arriva come addebito diretto e la banca la classifica «Utenze - Acqua, luce e gas»: senza regola i rifornimenti finiscono fra le spese d'ufficio.",
+  "_commento_forzate": "Regole che BATTONO la categoria assegnata da Banco BPM, perché l'etichetta automatica della banca in questi casi è dimostrabilmente sbagliata: i giroconti che COMO LAKE ESTATE SRL si fa da un proprio conto all'altro arrivano marcati come 'Ricavi'. Contarli come fatturato gonfia i fondi FRS con denaro che non e' mai stato guadagnato. Verificato: togliendoli, le settimane 6, 9 e 11 coincidono al centesimo con i dati inseriti a mano nella scheda Delta 2025/2026. I movimenti con CBV INTERIOR GALLERY sono finanziamenti infruttiferi infragruppo (confermato dalla titolare), non fatturato: vanno in Finanziamento IC in entrata come in uscita. MAYOROVA KSENIA: la banca mette i pagamenti da 19.000 in «Altre spese - Generico» e quelli da 1.000 in «Fornitori», pur essendo lo stesso soggetto; si uniformano a Fattura Fornitore. Fornitori identificati dalla titolare: JamesEdition e ENT Graphic sono marketing, APIMO e DigitalOcean sono software (la banca li mette rispettivamente in «Carburanti» e «Alberghi»), Lucia Rovelli e' saldo provvigioni, Liubov Petelina fattura freelance, la sanzione e' antiriciclaggio. Shell Mobility e' la carta carburante aziendale, ma arriva come addebito diretto e la banca la classifica «Utenze - Acqua, luce e gas»: senza regola i rifornimenti finiscono fra le spese d'ufficio. Condominio San Giorgio ci arrivava gia' tramite «Servizi - Spese condominiali», ma la regola esplicita lo rende indipendente da come lo etichetta la banca.",
   "regole_forzate": [
     {
       "categoria": "Finanziamento IC",
@@ -330,6 +330,13 @@
       "categoria": "Auto e Trasferte",
       "parole": [
         "shell mobility"
+      ]
+    },
+    {
+      "categoria": "Spese Ufficio",
+      "parole": [
+        "condominio",
+        "spese condominiali"
       ]
     }
   ]

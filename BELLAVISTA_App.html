@@ -1619,7 +1619,10 @@ const REGOLE_FORZATE = [
   // Shell Mobility è la carta carburante aziendale, ma passa come addebito
   // diretto e la banca la marca «Utenze - Acqua, luce e gas»: senza questa
   // regola i rifornimenti finiscono fra le spese d'ufficio.
-  {cat: 'Auto e Trasferte', parole: ['shell mobility']}
+  {cat: 'Auto e Trasferte', parole: ['shell mobility']},
+  // Le spese condominiali ci arrivano già tramite la categoria della banca:
+  // la regola esplicita serve a non dipendere da come la banca le etichetta.
+  {cat: 'Spese Ufficio', parole: ['condominio', 'spese condominiali']}
 ];
 
 // Usate quando la banca non ha messo nessuna categoria. L'ordine conta: vince
