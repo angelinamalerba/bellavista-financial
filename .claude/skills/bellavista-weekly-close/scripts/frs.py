@@ -38,18 +38,24 @@ DIRETTI = {
 }
 
 # Доли от маржи (margine = 50% выручки). Сумма = 100%.
+# Fondo Rimborso Finanziamenti: copre gradualmente i debiti infragruppo e i
+# finanziamenti, e prende il 20% del margine. Quel 20% non tocca Tasse e
+# Retribuzioni (obblighi di legge), esce soprattutto dai Dividendi — non si
+# distribuisce utile mentre si ha debito — e per il resto in proporzione dai
+# fondi discrezionali. La somma resta esattamente 100%.
 MARGINE = {
     "iva": 0.35,
     "retrib": 0.24,
-    "dividendi": 0.15,
-    "hr": 0.02619847328244275,
-    "ceo": 0.03969465648854962,
-    "sviluppo": 0.03969465648854962,
-    "riserve": 0.02381679389312977,
-    "rimborso": 0.03969465648854962,
-    "formazione": 0.01587786259541985,
-    "affitti": 0.0317557251908397,
-    "so": 0.04326717557251909,
+    "dividendi": 0.07,
+    "debiti": 0.20,
+    "hr": 0.01410687022900764,
+    "ceo": 0.02137404580152672,
+    "sviluppo": 0.02137404580152672,
+    "riserve": 0.01282442748091603,
+    "rimborso": 0.02137404580152672,
+    "formazione": 0.00854961832061069,
+    "affitti": 0.01709923664122138,
+    "so": 0.0232977099236642,
 }
 
 ETICHETTE = {
@@ -60,6 +66,7 @@ ETICHETTE = {
     "iva": "Fondo Tasse + Imposte",
     "retrib": "Fondo Retribuzioni + Tasse",
     "dividendi": "Fondo Dividendi",
+    "debiti": "Fondo Rimborso Finanziamenti",
     "hr": "Fondo Obiettivi HR",
     "ceo": "Fondo Emolumento CEO",
     "sviluppo": "Fondo Sviluppo",
@@ -86,7 +93,8 @@ CATEGORIE_DEFAULT = [
     ("Onorario Notaio", "po", ""), ("Onorario Professionista", "po", ""),
     ("Investimento Immobiliare", "entrambi", ""), ("Rimborso Cliente", "banca", ""),
     ("Mediazione Immobiliare", "entrambi", ""), ("Commissioni", "banca", ""),
-    ("Finanziamento IC", "banca", "debito"), ("Stipendi", "banca", ""),
+    ("Finanziamento IC", "banca", "debito"), ("Rimborso Finanziamenti", "entrambi", ""),
+    ("Stipendi", "banca", ""),
     ("Tasse", "banca", ""), ("Software", "entrambi", ""), ("Marketing", "entrambi", ""),
     ("Spese Ufficio", "entrambi", ""), ("Spese Condominiali", "entrambi", ""),
     ("Formazione Esterna", "entrambi", ""),

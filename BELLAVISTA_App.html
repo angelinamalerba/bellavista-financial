@@ -630,6 +630,9 @@
   <section id="parametri" class="tab">
     <div class="card">
       <h2>Parametri FRS (modello di distribuzione fondi)</h2>
+      <div style="margin-bottom:10px;">
+        <button onclick="applicaModelloProposto()">↺ Applica il modello con il Fondo Rimborso Finanziamenti</button>
+      </div>
       <p class="small">Tutte le percentuali sul margine sommano esattamente al 100% — modificarle con cautela: la somma deve restare 100%.</p>
       <div class="table-wrap">
       <table>
@@ -690,12 +693,17 @@
 
 <script>
 // ---------- STORAGE ----------
+// Quote del margine. Il Fondo Rimborso Finanziamenti copre gradualmente i debiti
+// infragruppo e i finanziamenti: prende il 20% del margine, e quel 20% esce da
+// Tasse e Retribuzioni mai (sono obblighi di legge), soprattutto dai Dividendi
+// — non si distribuisce utile mentre si ha debito da rimborsare — e per il resto
+// in proporzione dai fondi discrezionali. La somma deve restare esattamente 100%.
 const DEFAULT_PARAMS = {
   agenti:0.30, partner:0.05, dirigenza:0.05, marketing:0.10,
-  iva:0.35, retrib:0.24, dividendi:0.15,
-  hr:0.02619847328244275, ceo:0.03969465648854962, sviluppo:0.03969465648854962,
-  riserve:0.02381679389312977, rimborso:0.03969465648854962,
-  formazione:0.01587786259541985, affitti:0.0317557251908397, so:0.04326717557251909
+  iva:0.35, retrib:0.24, dividendi:0.07, debiti:0.2,
+  hr:0.01410687022900764, ceo:0.02137404580152672, sviluppo:0.02137404580152672,
+  riserve:0.01282442748091603, rimborso:0.02137404580152672,
+  formazione:0.00854961832061069, affitti:0.01709923664122138, so:0.0232977099236642
 };
 
 const DEFAULT_CATEGORIE = [
@@ -727,6 +735,7 @@ const DEFAULT_CATEGORIE = [
   // Spese operative
   {name:'Commissioni', type:'banca'},
   {name:'Finanziamento IC', type:'banca', natura:'debito'},
+  {name:'Rimborso Finanziamenti', type:'entrambi'},
   {name:'Stipendi', type:'banca'},
   {name:'Tasse', type:'banca'},
   {name:'Software', type:'entrambi'},
@@ -789,11 +798,11 @@ function calcWeek(amount){
   const totDiretti = agenti+partner+dirigenza+marketing;
   const margine = amount*0.5;
   const iva = margine*p.iva, retrib = margine*p.retrib, dividendi = margine*p.dividendi;
-  const hr = margine*p.hr, ceo = margine*p.ceo, sviluppo = margine*p.sviluppo, riserve = margine*p.riserve,
+  const debiti = margine*p.debiti, hr = margine*p.hr, ceo = margine*p.ceo, sviluppo = margine*p.sviluppo, riserve = margine*p.riserve,
         rimborso = margine*p.rimborso, formazione = margine*p.formazione, affitti = margine*p.affitti, so = margine*p.so;
-  const totMargine = iva+retrib+dividendi+hr+ceo+sviluppo+riserve+rimborso+formazione+affitti+so;
+  const totMargine = iva+retrib+dividendi+debiti+hr+ceo+sviluppo+riserve+rimborso+formazione+affitti+so;
   const check = amount - totDiretti - totMargine;
-  return {agenti,partner,dirigenza,marketing,totDiretti,margine,iva,retrib,dividendi,hr,ceo,sviluppo,riserve,rimborso,formazione,affitti,so,totMargine,check};
+  return {agenti,partner,dirigenza,marketing,totDiretti,margine,iva,retrib,dividendi,debiti,hr,ceo,sviluppo,riserve,rimborso,formazione,affitti,so,totMargine,check};
 }
 
 // ---------- SETTIMANE FRS ----------
@@ -865,7 +874,7 @@ const GRUPPI_FONDI = {
   diretti: {label: 'Tot.Diretti', tot: 'totDiretti', voci: [
     ['agenti','Agenti 30%'], ['partner','Partner 5%'], ['dirigenza','Dirigenza 5%'], ['marketing','Marketing 10%']]},
   margine: {label: 'Margine 50%', tot: 'margine', voci: [
-    ['iva','Tasse 35%'], ['retrib','Retrib. 24%'], ['dividendi','Dividendi 15%'], ['hr','HR'], ['ceo','CEO'],
+    ['iva','Tasse 35%'], ['retrib','Retrib. 24%'], ['dividendi','Dividendi 7%'], ['debiti','Rimb. Finanz. 20%'], ['hr','HR'], ['ceo','CEO'],
     ['sviluppo','Sviluppo'], ['riserve','Riserve'], ['rimborso','Rimborso'], ['formazione','Formazione'],
     ['affitti','Affitti'], ['so','SO']]}
 };
@@ -1087,11 +1096,27 @@ const paramLabels = [
   ['agenti','Fondo Agenti','ricavi'], ['partner','Fondo Partner','ricavi'],
   ['dirigenza','Fondo Dirigenza','ricavi'], ['marketing','Fondo Marketing & IT','ricavi'],
   ['iva','Fondo Tasse + Imposte','margine'], ['retrib','Fondo Retribuzioni + Tasse','margine'],
-  ['dividendi','Fondo Dividendi','margine'], ['hr','Fondo Obiettivi HR','margine'],
+  ['dividendi','Fondo Dividendi','margine'], ['debiti','Fondo Rimborso Finanziamenti','margine'],
+  ['hr','Fondo Obiettivi HR','margine'],
   ['ceo','Fondo Emolumento CEO','margine'], ['sviluppo','Fondo Sviluppo','margine'],
   ['riserve','Fondo Riserve','margine'], ['rimborso','Fondo Rimborso Investimenti','margine'],
   ['formazione','Fondo Formazione','margine'], ['affitti','Fondo Affitti','margine'], ['so','Fondo Spese Operative','margine']
 ];
+
+// I dati salvati prima dell'introduzione del Fondo Rimborso Finanziamenti hanno
+// le vecchie quote: sommate al nuovo 20% farebbero 120% e il CHECK andrebbe in
+// rosso. Questo pulsante riporta tutto al modello proposto in un colpo.
+function applicaModelloProposto(){
+  if(!confirm('Riportare le percentuali al modello con il Fondo Rimborso Finanziamenti al 20%?\n\n' +
+              'Tasse 35% e Retribuzioni 24% restano invariate, i Dividendi scendono al 7% e gli altri ' +
+              'fondi si riducono in proporzione.\n\nLe percentuali attuali verranno sostituite.')) return;
+  DATA.params = {...DEFAULT_PARAMS};
+  saveData();
+  renderParams();
+  renderDistribuzione();
+  renderDashboard();
+  alert('Modello applicato. Controlla che il CHECK nella distribuzione sia € 0,00.');
+}
 
 function renderParams(){
   const body = document.getElementById('paramBody');
@@ -1184,7 +1209,7 @@ function exportDistribuzione(){
   const col = [
     ['Fondo Agenti','agenti'], ['Fondo Partner','partner'], ['Fondo Dirigenza','dirigenza'],
     ['Fondo Marketing','marketing'], ['Tot.Diretti','totDiretti'], ['Margine','margine'],
-    ['Fondo Tasse','iva'], ['Fondo Retrib.','retrib'], ['Fondo Dividendi','dividendi'],
+    ['Fondo Tasse','iva'], ['Fondo Retrib.','retrib'], ['Fondo Dividendi','dividendi'], ['Fondo Rimborso Finanziamenti','debiti'],
     ['Fondo HR','hr'], ['Fondo CEO','ceo'], ['Fondo Sviluppo','sviluppo'], ['Fondo Riserve','riserve'],
     ['Fondo Rimborso','rimborso'], ['Fondo Formazione','formazione'], ['Fondo Affitti','affitti'],
     ['Fondo SO','so'], ['Tot.Margine','totMargine'], ['CHECK','check']
@@ -2214,7 +2239,7 @@ function exportDebitiDettaglio(){
 const FONDI_ELENCO = [
   ['agenti','Fondo Agenti'], ['partner','Fondo Partner'], ['dirigenza','Fondo Dirigenza'],
   ['marketing','Fondo Marketing & IT'], ['iva','Fondo Tasse + Imposte'], ['retrib','Fondo Retribuzioni'],
-  ['dividendi','Fondo Dividendi'], ['hr','Fondo Obiettivi HR'], ['ceo','Fondo Emolumento CEO'],
+  ['dividendi','Fondo Dividendi'], ['debiti','Fondo Rimborso Finanziamenti'], ['hr','Fondo Obiettivi HR'], ['ceo','Fondo Emolumento CEO'],
   ['sviluppo','Fondo Sviluppo'], ['riserve','Fondo Riserve'], ['rimborso','Fondo Rimborso Investimenti'],
   ['formazione','Fondo Formazione'], ['affitti','Fondo Affitti'], ['so','Fondo Spese Operative']
 ];
@@ -2228,7 +2253,7 @@ const FONDO_DEFAULT = {
   'Consulenze': 'so', 'Onorario Professionista': 'so', 'Onorario Notaio': 'so',
   'Commissioni': 'so', 'Assicurazioni': 'so', 'Auto e Trasferte': 'so',
   'Rappresentanza': 'ceo', 'Fattura Fornitore': 'so', 'Altro': 'so',
-  'Investimento Immobiliare': 'rimborso', 'Mediazione Immobiliare': 'agenti'
+  'Investimento Immobiliare': 'rimborso', 'Finanziamento IC': 'debiti', 'Mediazione Immobiliare': 'agenti'
 };
 
 function fondoDi(nomeCat){

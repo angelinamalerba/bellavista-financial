@@ -112,6 +112,24 @@ Trasferte** e **Sanzioni**. Senza di quelle un quarto dei movimenti finiva in
 Se si modifica una regola va aggiornata in entrambi i posti, altrimenti importare
 il CSV nell'app e farlo elaborare allo skill darebbe risultati diversi.
 
+## Fondo Rimborso Finanziamenti
+
+Copre gradualmente i debiti infragruppo e i finanziamenti, e prende il **20% del
+margine**. È visibile a tutti, anche in vista Utente.
+
+Quel 20% doveva uscire da qualche parte, e la scelta non è neutra: **Tasse (35%)
+e Retribuzioni (24%) restano invariate** perché sono obblighi di legge e
+sottofinanziarle sposta solo il problema; la fetta maggiore esce dai **Dividendi,
+che scendono dal 15% al 7%**, perché non si distribuisce utile mentre si ha
+debito da rimborsare; il resto in proporzione dai fondi discrezionali.
+
+La categoria di spesa **Finanziamento IC** è collegata a questo fondo, così i
+rimborsi lo consumano nella pianificazione.
+
+⚠️ Chi ha dati salvati da prima ha le vecchie percentuali: sommate al nuovo 20%
+farebbero 120% e il CHECK va in rosso. Il pulsante **↺ Applica il modello con il
+Fondo Rimborso Finanziamenti** (Parametri FRS) rimette tutto a posto in un clic.
+
 ## Pianificazione: budget dei fondi e spesa sotto
 
 Ogni settimana distribuisce i ricavi nei quindici fondi FRS. La scheda
