@@ -49,6 +49,11 @@
   .kpi .value{font-size:22px; font-weight:bold; color:var(--navy); margin-top:4px;}
   .kpi.warn{background:#FCEFE3;}
   .kpi.ok{background:#E8F8EF;}
+  button.gruppo{background:none; border:none; color:#fff; font-weight:bold; cursor:pointer;
+    font-size:11px; padding:0;}
+  button.gruppo:hover{text-decoration:underline;}
+  td.gruppo-tot{font-weight:bold; background:rgba(31,45,92,0.05);}
+  td.gruppo-voce{color:#555;}
   button.linkish{background:none; border:none; color:var(--navy); font-weight:bold; cursor:pointer;
     font-size:12px; padding:0; text-align:left;}
   button.linkish:hover{text-decoration:underline;}
@@ -176,13 +181,7 @@
       <button class="primary" onclick="exportDistribuzione()">⬇ Esporta in Excel (CSV)</button>
       <div class="table-wrap">
       <table id="distTable">
-        <thead><tr>
-          <th>Settimana</th><th>Ricavi</th>
-          <th>Agenti 30%</th><th>Partner 5%</th><th>Dirigenza 5%</th><th>Marketing 10%</th><th>Tot.Diretti</th>
-          <th>Margine 50%</th><th>IVA 35%</th><th>Retrib. 24%</th><th>Dividendi 15%</th>
-          <th>HR</th><th>CEO</th><th>Sviluppo</th><th>Riserve</th><th>Rimborso</th><th>Formazione</th><th>Affitti</th><th>SO</th>
-          <th>Tot.Margine</th><th>CHECK</th><th></th>
-        </tr></thead>
+        <thead id="distHead"></thead>
         <tbody id="distBody"></tbody>
         <tfoot id="distFoot"></tfoot>
       </table>
@@ -747,7 +746,12 @@ document.querySelectorAll('.navbtn').forEach(btn=>{
   });
 });
 
-const eur = n => '€ ' + Number(n).toLocaleString('it-IT', {minimumFractionDigits:2, maximumFractionDigits:2});
+// Il residuo di virgola mobile (-3,6e-12) si arrotonda a «-0,00», che nella
+// colonna CHECK sembra uno sbilancio invece della quadratura perfetta.
+const eur = n => {
+  const v = Math.abs(n) < 0.005 ? 0 : Number(n);
+  return '€ ' + v.toLocaleString('it-IT', {minimumFractionDigits:2, maximumFractionDigits:2});
+};
 
 // ---------- DISTRIBUZIONE ----------
 function calcWeek(amount){
@@ -824,32 +828,74 @@ function addWeek(){
 }
 function deleteWeek(idx){ DATA.weeks.splice(idx,1); saveData(); renderDistribuzione(); }
 
+// I quindici fondi in ventidue colonne erano illeggibili: per vedere il CHECK
+// bisognava scorrere oltre lo schermo. I fondi stanno sotto il totale a cui
+// appartengono e si aprono col +, così la tabella parte da sei colonne e mostra
+// subito quello che conta — ricavi, i due totali, la quadratura.
+const GRUPPI_FONDI = {
+  diretti: {label: 'Tot.Diretti', tot: 'totDiretti', voci: [
+    ['agenti','Agenti 30%'], ['partner','Partner 5%'], ['dirigenza','Dirigenza 5%'], ['marketing','Marketing 10%']]},
+  margine: {label: 'Margine 50%', tot: 'margine', voci: [
+    ['iva','IVA 35%'], ['retrib','Retrib. 24%'], ['dividendi','Dividendi 15%'], ['hr','HR'], ['ceo','CEO'],
+    ['sviluppo','Sviluppo'], ['riserve','Riserve'], ['rimborso','Rimborso'], ['formazione','Formazione'],
+    ['affitti','Affitti'], ['so','SO']]}
+};
+
+let DIST_APERTI = {diretti: false, margine: false};
+
+function toggleGruppoFondi(k){
+  DIST_APERTI[k] = !DIST_APERTI[k];
+  renderDistribuzione();
+}
+
 function renderDistribuzione(){
   const body = document.getElementById('distBody');
-  body.innerHTML='';
-  let totals = {amount:0,agenti:0,partner:0,dirigenza:0,marketing:0,totDiretti:0,margine:0,iva:0,retrib:0,dividendi:0,
-                hr:0,ceo:0,sviluppo:0,riserve:0,rimborso:0,formazione:0,affitti:0,so:0,totMargine:0,check:0};
-  DATA.weeks.forEach((w, idx)=>{
+  const head = document.getElementById('distHead');
+  if(!body || !head) return;
+
+  // intestazione e righe si generano dalla stessa struttura: non possono divergere
+  const colonne = [];
+  colonne.push({th: 'Settimana', val: (w) => `<td class="left">${w.date}</td>`});
+  colonne.push({th: 'Ricavi', val: (w) => `<td>${eur(w.amount)}</td>`, tot: 'amount'});
+  Object.entries(GRUPPI_FONDI).forEach(([k, g]) => {
+    const aperto = DIST_APERTI[k];
+    colonne.push({
+      th: `<button class="gruppo" onclick="toggleGruppoFondi('${k}')" title="${aperto ? 'Nascondi' : 'Mostra'} i fondi">
+             ${aperto ? '−' : '+'} ${g.label}</button>`,
+      val: (w, c) => `<td class="gruppo-tot">${eur(c[g.tot])}</td>`, tot: g.tot
+    });
+    if(aperto) g.voci.forEach(([campo, et]) =>
+      colonne.push({th: et, val: (w, c) => `<td class="gruppo-voce">${eur(c[campo])}</td>`, tot: campo}));
+  });
+  colonne.push({th: 'Tot.Margine', val: (w, c) => `<td>${eur(c.totMargine)}</td>`, tot: 'totMargine'});
+  colonne.push({th: 'CHECK', tot: 'check',
+    val: (w, c) => `<td class="${Math.abs(c.check) < 0.01 ? 'check-ok' : 'check-bad'}">${eur(c.check)}</td>`});
+
+  head.innerHTML = '<tr>' + colonne.map(c => `<th>${c.th}</th>`).join('') + '<th></th></tr>';
+
+  const totals = {};
+  body.innerHTML = '';
+  DATA.weeks.forEach((w, idx) => {
     const c = calcWeek(w.amount);
     const tr = document.createElement('tr');
-    const checkClass = Math.abs(c.check) < 0.01 ? 'check-ok' : 'check-bad';
-    tr.innerHTML = `<td class="left">${w.date}</td><td>${eur(w.amount)}</td>
-      <td>${eur(c.agenti)}</td><td>${eur(c.partner)}</td><td>${eur(c.dirigenza)}</td><td>${eur(c.marketing)}</td><td>${eur(c.totDiretti)}</td>
-      <td>${eur(c.margine)}</td><td>${eur(c.iva)}</td><td>${eur(c.retrib)}</td><td>${eur(c.dividendi)}</td>
-      <td>${eur(c.hr)}</td><td>${eur(c.ceo)}</td><td>${eur(c.sviluppo)}</td><td>${eur(c.riserve)}</td><td>${eur(c.rimborso)}</td><td>${eur(c.formazione)}</td><td>${eur(c.affitti)}</td><td>${eur(c.so)}</td>
-      <td>${eur(c.totMargine)}</td><td class="${checkClass}">${eur(c.check)}</td>
-      <td><button class="danger" onclick="deleteWeek(${idx})">✕</button></td>`;
+    tr.innerHTML = colonne.map(col => col.val(w, c)).join('') +
+      `<td><button class="danger" onclick="deleteWeek(${idx})">✕</button></td>`;
     body.appendChild(tr);
-    totals.amount += w.amount;
-    for(const k in c){ if(k in totals) totals[k]+=c[k]; }
+    totals.amount = (totals.amount || 0) + w.amount;
+    for(const k in c){ if(typeof c[k] === 'number') totals[k] = (totals[k] || 0) + c[k]; }
   });
+  if(DATA.weeks.length === 0){
+    body.innerHTML = `<tr><td colspan="${colonne.length + 1}" style="text-align:center;color:#999;">
+      Nessuna settimana. Inseriscila sopra, oppure ricostruisci tutto dai ricavi in banca.</td></tr>`;
+  }
+
   const foot = document.getElementById('distFoot');
-  const checkClass = Math.abs(totals.check) < 0.01 ? 'check-ok' : 'check-bad';
-  foot.innerHTML = `<tr class="tot-row"><td class="left">TOTALE</td><td>${eur(totals.amount)}</td>
-    <td>${eur(totals.agenti)}</td><td>${eur(totals.partner)}</td><td>${eur(totals.dirigenza)}</td><td>${eur(totals.marketing)}</td><td>${eur(totals.totDiretti)}</td>
-    <td>${eur(totals.margine)}</td><td>${eur(totals.iva)}</td><td>${eur(totals.retrib)}</td><td>${eur(totals.dividendi)}</td>
-    <td>${eur(totals.hr)}</td><td>${eur(totals.ceo)}</td><td>${eur(totals.sviluppo)}</td><td>${eur(totals.riserve)}</td><td>${eur(totals.rimborso)}</td><td>${eur(totals.formazione)}</td><td>${eur(totals.affitti)}</td><td>${eur(totals.so)}</td>
-    <td>${eur(totals.totMargine)}</td><td class="${checkClass}">${eur(totals.check)}</td><td></td></tr>`;
+  const okCheck = Math.abs(totals.check || 0) < 0.01;
+  foot.innerHTML = DATA.weeks.length ? `<tr class="tot-row">` + colonne.map((col, i) => {
+    if(i === 0) return `<td class="left">TOTALE (${DATA.weeks.length} settimane)</td>`;
+    const v = totals[col.tot] || 0;
+    return `<td${col.tot === 'check' ? ` class="${okCheck ? 'check-ok' : 'check-bad'}"` : ''}>${eur(v)}</td>`;
+  }).join('') + '<td></td></tr>' : '';
 }
 
 // ---------- PURCHASE ORDERS ----------

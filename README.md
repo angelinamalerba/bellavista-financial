@@ -112,6 +112,14 @@ Trasferte** e **Sanzioni**. Senza di quelle un quarto dei movimenti finiva in
 Se si modifica una regola va aggiornata in entrambi i posti, altrimenti importare
 il CSV nell'app e farlo elaborare allo skill darebbe risultati diversi.
 
+## Tabella dei fondi a gruppi
+
+I quindici fondi occupavano ventidue colonne e per vedere il CHECK — la
+quadratura, cioè il dato che conta di più — bisognava scorrere oltre lo schermo.
+Ora i fondi stanno sotto il totale a cui appartengono e si aprono con il **+**:
+la tabella parte da sei colonne con ricavi, i due totali e la quadratura, e si
+espande solo quando serve il dettaglio.
+
 ## Ricostruire le settimane dai ricavi in banca
 
 La distribuzione settimanale si compilava a mano rileggendo l'estratto conto, ma
