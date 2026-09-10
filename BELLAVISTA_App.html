@@ -193,8 +193,9 @@
       Il <b>disponibile è cumulato</b>, non settimanale: quello che non si spende in una settimana resta
       per quelle dopo, altrimenti un fondo sembrerebbe scoperto solo perché l'incasso è arrivato più tardi.
       Approvando un ordine oltre la capienza del suo fondo l'applicazione avvisa con i numeri in mano.</p>
-      <p class="small"><b>Quale fondo copre quale spesa</b> è una decisione aziendale, non una regola tecnica:
-      il collegamento di partenza è una proposta e si cambia categoria per categoria in «Categorie Spese».</p>
+      <p class="small"><b>Quale fondo copre quale spesa</b> non è una regola tecnica ma una decisione aziendale:
+      qui è quella del Suo modello FRS, ricopiata voce per voce nella tabella «Cosa copre ogni fondo» qui sotto.
+      Resta modificabile categoria per categoria in «Categorie Spese».</p>
       <div class="table-wrap">
       <table id="pianoTable">
         <thead><tr><th>Sett.</th><th>Periodo</th><th>Ricavi</th><th>Impegnato (PO)</th>
@@ -202,6 +203,26 @@
         <tbody id="pianoBody"></tbody>
       </table>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>🧭 Cosa copre ogni fondo — e chi firma l'ordine</h2>
+      <p class="small">Ricopiato dal modello Excel FRS di COMO LAKE ESTATE (fogli «Расходы — отв.+счета» e
+      «Responsabili Ordini di Acquisto», governance interna di maggio 2026). È questa tabella che decide su
+      quale fondo cade una spesa e chi deve scrivere il Purchase Order: scegliendo la categoria in un nuovo
+      ordine, richiedente e approvatore si compilano da soli.</p>
+      <div id="coperturaNote"></div>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>FRS</th><th class="left" style="min-width:260px;">Voce di spesa</th>
+          <th class="left">Fondo che la paga</th><th>Richiede</th><th>Approva</th>
+          <th class="left" style="min-width:220px;">Esempi</th></tr></thead>
+        <tbody id="coperturaBody"></tbody>
+      </table>
+      </div>
+      <h3 style="margin-top:18px;">Chi può richiedere che cosa</h3>
+      <div id="chiRichiede" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+      <div id="coperturaBuchi" style="margin-top:14px;"></div>
     </div>
 
     <div class="card">
@@ -222,24 +243,19 @@
     <div class="card">
       <h2>Nuovo Ordine di Acquisto</h2>
       <div class="form-grid">
-        <div><label>Data richiesta</label><input type="date" id="po_date"></div>
+        <div><label>Data richiesta</label><input type="date" id="po_date" onchange="onPOCat()"></div>
         <div><label>Fornitore</label><input type="text" id="po_supplier"></div>
         <div><label>Descrizione</label><input type="text" id="po_desc"></div>
         <div><label>Importo (€)</label><input type="number" id="po_amount" min="0" step="0.01"></div>
         <div><label>Categoria / Fondo</label>
-          <select id="po_cat"></select>
+          <select id="po_cat" onchange="onPOCat()"></select>
+          <div id="po_hint" class="small" style="margin-top:4px;color:#666;"></div>
         </div>
         <div><label>Richiedente</label>
-          <select id="po_req">
-            <option>AM - Angelina</option><option>SB - Silvia</option><option>PC - Patrizia</option>
-            <option>AB - Alena</option><option>YK - Yura</option><option>LP - Liubov</option><option>FilS - Filippo</option>
-          </select>
+          <select id="po_req" onchange="PO_TOCCATO.req=true;"></select>
         </div>
         <div><label>Approvatore</label>
-          <select id="po_app">
-            <option>AM - Angelina</option><option>SB - Silvia</option><option>PC - Patrizia</option>
-            <option>AB - Alena</option><option>YK - Yura</option><option>LP - Liubov</option><option>FilS - Filippo</option>
-          </select>
+          <select id="po_app" onchange="PO_TOCCATO.app=true;"></select>
         </div>
         <div><label>Status</label>
           <select id="po_status">
@@ -573,7 +589,7 @@
       </div>
       <div class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th class="left" style="min-width:240px;">Nome categoria</th><th>Tipo</th><th>Fondo di copertura</th><th>Natura</th><th>Usata in</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th class="left" style="min-width:240px;">Nome categoria</th><th>Tipo</th><th>Fondo di copertura</th><th>Chi richiede il PO</th><th>Chi approva</th><th>Natura</th><th>Usata in</th><th></th></tr></thead>
         <tbody id="catBody"></tbody>
       </table>
       </div>
@@ -758,7 +774,8 @@ function loadData(){
   const raw = localStorage.getItem('bellavista_data');
   if(raw){
     const d = JSON.parse(raw);
-    if(!d.categorie) d.categorie = DEFAULT_CATEGORIE.map(c=>({...c}));
+    if(!Array.isArray(d.categorie) || !d.categorie.length)
+      d.categorie = DEFAULT_CATEGORIE.map(c=>({...c}));   // un backup con elenco vuoto lasciava l'app senza categorie
     if(!d.debiti) d.debiti = [];
     if(!d.regoleApprese) d.regoleApprese = [];
     if(!d.ruolo) d.ruolo = 'utente';   // di default la vista ristretta
@@ -945,15 +962,22 @@ function addPO(){
   const supplier = document.getElementById('po_supplier').value.trim();
   const amount = parseFloat(document.getElementById('po_amount').value);
   if(!supplier || isNaN(amount)){ alert('Inserisci fornitore e importo validi.'); return; }
+  const req = document.getElementById('po_req').value, app = document.getElementById('po_app').value;
+  if((!req || !app) && !confirm('Questo ordine resta senza ' +
+      [!req ? 'richiedente' : '', !app ? 'approvatore' : ''].filter(Boolean).join(' né ') +
+      '.\n\nIl modello FRS non indica chi firma per questa categoria: può assegnarlo in ' +
+      '«Categorie Spese» una volta per tutte.\n\nInserire lo stesso?')) return;
   DATA.po.push({
     date: document.getElementById('po_date').value,
     supplier, desc: document.getElementById('po_desc').value,
     amount, cat: document.getElementById('po_cat').value,
-    req: document.getElementById('po_req').value, app: document.getElementById('po_app').value,
+    req, app,
     status: document.getElementById('po_status').value, note: document.getElementById('po_note').value
   });
   saveData();
   ['po_supplier','po_desc','po_amount','po_note'].forEach(id=>document.getElementById(id).value='');
+  PO_TOCCATO = {req: false, app: false};   // l'ordine dopo riparte dal modello
+  onPOCat();
   renderPO();
 }
 function deletePO(idx){ DATA.po.splice(idx,1); saveData(); renderPO(); }
@@ -2246,15 +2270,241 @@ const FONDI_ELENCO = [
 const FONDI_ETICHETTA = Object.fromEntries(FONDI_ELENCO);
 
 const FONDO_DEFAULT = {
-  'Marketing': 'marketing', 'Software': 'marketing', 'Attrezzature Ufficio': 'marketing',
-  'Stipendi': 'retrib', 'Tasse': 'iva', 'Sanzioni': 'iva',
-  'Formazione Esterna': 'formazione',
-  'Spese Ufficio': 'affitti', 'Spese Condominiali': 'affitti',
-  'Consulenze': 'so', 'Onorario Professionista': 'so', 'Onorario Notaio': 'so',
-  'Commissioni': 'so', 'Assicurazioni': 'so', 'Auto e Trasferte': 'so',
-  'Rappresentanza': 'ceo', 'Fattura Fornitore': 'so', 'Altro': 'so',
-  'Investimento Immobiliare': 'rimborso', 'Finanziamento IC': 'debiti', 'Mediazione Immobiliare': 'agenti'
+  // Categorie che portano il nome di un fondo: alimentano il proprio.
+  'Fondo Agenti':'agenti', 'Fondo Partner':'partner', 'Fondo Dirigenza':'dirigenza',
+  'Fondo Marketing & IT':'marketing', 'Fondo IVA+Imposte':'iva', 'Fondo Retribuzioni':'retrib',
+  'Fondo Dividendi':'dividendi', 'Fondo CEO':'ceo', 'Fondo Sviluppo':'sviluppo',
+  'Fondo Riserve':'riserve', 'Fondo Rimborso':'rimborso', 'Fondo Formazione':'formazione',
+  'Fondo Affitti':'affitti', 'Fondo SO':'so',
+  // Spese, secondo il modello Excel (il codice FRS a fianco dice da quale voce viene).
+  'Mediazione Immobiliare': 'agenti',        // F1  provvigioni agenti
+  'Marketing': 'marketing',                  // F4  ads, portali, stampa, CRM marketing
+  'Stipendi': 'retrib',                      // F6.1
+  'Consulenze': 'retrib',                    // F6.3 collaboratori e freelance
+  'Onorario Professionista': 'retrib',       // F6.2 commercialista, legali
+  'Onorario Notaio': 'retrib',               // F6.2 notai
+  'Tasse': 'iva', 'Sanzioni': 'iva',         // F5
+  'Finanziamento IC': 'debiti',              // F11.1 prestiti soci / infrasocietà
+  'Rimborso Finanziamenti': 'debiti',        // F11.2 debiti verso terzi approvati
+  'Formazione Esterna': 'formazione',        // F13
+  'Spese Condominiali': 'affitti',           // F14.2 Condominio San Giorgio
+  'Commissioni': 'so',                       // F15 spese bancarie
+  'Attrezzature Ufficio': 'so',              // F16.1 forniture per ufficio
+  'Auto e Trasferte': 'so',                  // F16.4 / F16.5
+  'Rappresentanza': 'so',                    // F16.3 + F19 regali e PR clienti
+  'Spese Ufficio': 'so',                     // F17 utenze, pulizie, manutenzioni
+  'Software': 'so',                          // F18 abbonamenti SaaS
+  // Categorie che il modello Excel non nomina: collegamento di ripiego, da confermare.
+  'Assicurazioni': 'so', 'Fattura Fornitore': 'so', 'Altro': 'so',
+  'Investimento Immobiliare': 'rimborso'
 };
+
+// ---------- CHI COPRE COSA E CHI CHIEDE: IL MODELLO AZIENDALE ----------
+// Fin qui il collegamento fra categoria di spesa e fondo era una proposta
+// tecnica. Adesso non lo è più: è ricopiato dal modello Excel FRS di
+// COMO LAKE ESTATE — fogli «Расходы — отв.+счета» (voce per voce, con chi
+// scrive l'ordine e chi lo approva) e «Responsabili Ordini di Acquisto»
+// (governance interna, maggio 2026).
+//
+// Serve a due cose: sapere quale fondo paga una spesa senza doverlo ricordare,
+// e sapere di chi è la firma. Un Purchase Order senza responsabile è un ordine
+// che nessuno ha davvero deciso.
+
+// La chiave è la stessa stringa già salvata negli ordini esistenti («AM - Angelina»):
+// cambiare l'etichetta mostrata non deve rompere gli ordini già inseriti.
+const RESPONSABILI = [
+  ['AM - Angelina',   'Angelina Malerba',   'CEO & Direttore Finanziario'],
+  ['SB - Silvia',     'Silvia Bianchi',     'Amministrativo Manager'],
+  ['PC - Patrizia',   'Patrizia Canale',    'Direttore Commerciale'],
+  ['FrS - Francesca', 'Francesca Severini', 'Manager Sviluppo Partner'],
+  ['BK - Bogdan',     'Bogdan Khromenkov',  'Marketing & IT'],
+  ['AB - Alena',      'Alena Barbieri',     'Top Sales'],
+  ['YK - Yura',       'Yura Kashin',        'Media Production'],
+  ['LP - Liubov',     'Liubov Petelina',    'System Administrator'],
+  ['FilS - Filippo',  'Filippo Spreafico',  'Contabilità (esterno) — esegue i pagamenti']
+];
+const RESP_NOME = Object.fromEntries(RESPONSABILI.map(([k, n, r]) => [k, `${n} · ${r}`]));
+
+// Sigle usate nel foglio Excel → chiave dell'elenco qui sopra.
+const SIGLA = {
+  AM:'AM - Angelina', SB:'SB - Silvia', PC:'PC - Patrizia', FrS:'FrS - Francesca',
+  BK:'BK - Bogdan', AB:'AB - Alena', YK:'YK - Yura', LP:'LP - Liubov', FilS:'FilS - Filippo'
+};
+
+// Cosa copre ogni fondo, voce per voce, come sta nel modello.
+// [codice FRS, fondo dell'applicazione, titolo, voci [nome, chi richiede, chi approva, esempi]]
+const COPERTURA_FRS = [
+  ['F1', 'agenti', 'Provvigioni agenti (30% dei ricavi)', [
+    ['Provvigioni agenti immobiliari', 'AM', 'AM', 'Percentuale all’agente alla chiusura della trattativa — Patrizia Canale, Alena Barbieri'],
+    ['Provvigioni rete commerciale', 'PC', 'PC', 'Federico Rizzolio, Maura Gini']
+  ]],
+  ['F2', 'partner', 'Partner e segnalatori (5%)', [
+    ['Compensi partner / referral', 'AM', 'AM', 'Provvigioni ai partner secondo la griglia di partnership']
+  ]],
+  ['F3', 'dirigenza', 'Fondo di gestione (5%)', [
+    ['Bonus gestione CEO', 'AM', 'AM', 'Riserva da distribuire alla dirigenza al raggiungimento dei KPI'],
+    ['Bonus gestione Direttore Commerciale', 'AM', 'AM', '']
+  ]],
+  ['F4', 'marketing', 'Marketing, pubblicità e sviluppo IT (10%)', [
+    ['Advertising digitale', 'BK', 'AM', 'Meta / Facebook Ads, Google Ads'],
+    ['Portali immobiliari', 'SB', 'SB', 'Immobiliare.it, JamesEdition, Idealista'],
+    ['Grafica, stampa e materiali promozionali', 'SB', 'SB', 'Pixartprinting, Grafix, Seristampa, ENT Graphic'],
+    ['Newsletter, CRM marketing e sviluppo', 'BK', 'AM', 'Consulenze Bogdan, Perfect Pixels'],
+    ['Agenzie esterne, media, fotografi, SMM', 'AM', 'AM', 'Leverage, Adoutreach']
+  ]],
+  ['F5', 'iva', 'Imposte: IVA + tasse sul reddito (35% del margine)', [
+    ['F24 mensili — INPS, INAIL, TFR', 'FilS', 'FilS', 'Versamenti contributivi e ritenute'],
+    ['Ritenute lavoratori autonomi F24', 'FilS', 'FilS', 'PagoPA / CBILL, bolli, IMU'],
+    ['IVA mensile / trimestrale', 'FilS', 'FilS', ''],
+    ['IRES / IRAP e altre imposte', 'FilS', 'FilS', 'Imposta annuale sul reddito d’impresa']
+  ]],
+  ['F6', 'retrib', 'Retribuzioni, professionisti e collaboratori (24%)', [
+    ['Salari e stipendi dipendenti', 'AM', 'FilS', 'Netto + INPS / IRPEF'],
+    ['Onorari professionisti — commercialista, notai, legali', 'AM', 'FilS', 'Lucia Rovelli, notai, studio legale'],
+    ['Altre consulenze, collaboratori e freelance', 'AM', 'FilS', 'Media production, fotografi, virtual tour, rendering'],
+    ['Rimborso spese amministratore', 'AM', 'AM', 'Spese del CEO documentate'],
+    ['Costi amministrativi e contabili interni', 'FilS', 'AM', '']
+  ]],
+  ['F7', 'hr', 'Obiettivi HR (2,7%)', [
+    ['Ricerca e selezione del personale', 'SB', 'SB', 'LinkedIn Recruiter, E-Work'],
+    ['Team building ed eventi aziendali', 'SB', 'SB', '']
+  ]],
+  ['F8', 'dividendi', 'Dividendi', [
+    ['Distribuzione utili ai soci', 'AM', 'AM', 'Solo su delibera assembleare — conto WISE, trimestrale']
+  ]],
+  ['F9', 'ceo', 'Emolumento CEO', [
+    ['Emolumento amministratore', 'AM', 'AM', 'Provvigioni Angelina']
+  ]],
+  ['F10', 'sviluppo', 'Sviluppo IT', [
+    ['Sviluppo prodotto IT, portale web', 'BK', 'AM', 'Portale clienti e dashboard agenti — Perfect Pixels DE']
+  ]],
+  ['F11', 'debiti', 'Rimborso finanziamenti infragruppo e debiti', [
+    ['Rimborso prestiti soci / infrasocietà', 'AM', 'AM', 'Rientro programmato dei finanziamenti infragruppo'],
+    ['Pagamento debiti verso terzi approvati', 'AM', 'AM', 'Notai Associati e altri creditori confermati']
+  ]],
+  ['F12', 'riserve', 'Riserve strategiche (2,4%)', [
+    ['Riserva di bassa stagione a lungo termine', 'AM', 'AM', 'Minimo € 40.000 — si tocca solo per decisione di AM e del consiglio finanziario']
+  ]],
+  ['F13', 'formazione', 'Formazione e aggiornamento professionale (1,6%)', [
+    ['Corsi, certificazioni e piattaforme formative', 'SB', 'AM', 'HWSchool, MMO, abbonamenti a piattaforme'],
+    ['Business coaching e consulenza strategica', 'AM', 'AM', 'Mamo BSS, John Lee, Atena Finance']
+  ]],
+  ['F14', 'affitti', 'Affitti e locali (Locali P.T e Baveno Trust Moneta)', [
+    ['Canone di affitto ufficio', 'AM', 'AM', 'Canone mensile dei locali'],
+    ['Spese condominiali', 'FilS', 'AM', 'Condominio San Giorgio, ordinarie e straordinarie'],
+    ['IMU e imposte sugli uffici', 'FilS', 'AM', '']
+  ]],
+  ['F15', 'so', 'Spese bancarie (dentro il fondo Spese Operative)', [
+    ['Commissioni bancarie e canone conto', 'AM', 'FilS', 'Banco BPM — commissioni, canone, spese carte']
+  ]],
+  ['F16', 'so', 'Spese ufficio, trasporti e scontrini di cassa (dentro SO)', [
+    ['Forniture per ufficio', 'SB', 'SB', 'Amazon, Mondoffice — cancelleria e materiali di consumo'],
+    ['Spesa alimentare e catering', 'SB', 'SB', 'Everli, Iperal — riunioni e incontri'],
+    ['Spese di rappresentanza clienti', 'AB', 'PC', 'Pranzi e cene di lavoro con i clienti'],
+    ['Trasporti, carburante e pedaggi', 'SB', 'SB', 'Shell SDD, parcheggi, autostrade'],
+    ['Trasferte, vitto e alloggio', 'AM', 'SB', 'Treni, hotel'],
+    ['PR, eventi networking, iscrizioni ad associazioni', 'AM', 'SB', 'Rotary Club Como, Fimma, conferenze']
+  ]],
+  ['F17', 'so', 'Manutenzioni, pulizie e utenze (dentro SO)', [
+    ['Utenze — energia, internet, telefonia', 'FilS', 'FilS', 'Enel Energia (2 contratti), EOLO, TIM, Iliad, Fastweb'],
+    ['Pulizie uffici', 'FilS', 'FilS', ''],
+    ['Manutenzione impianti e imbiancature', 'FilS', 'FilS', 'Tecno General, Alavie — SDD']
+  ]],
+  ['F18', 'so', 'Software e abbonamenti SaaS (dentro SO)', [
+    ['CRM e gestionali', 'LP', 'AM', 'Google Workspace, GHL, antiriciclaggio, FattureInCloud / TeamSystem, SendPulse, APIMO'],
+    ['Strumenti AI', 'BK', 'AM', 'ChatGPT, Canva, HeyGen, Planable, Krea, Midjourney'],
+    ['Hosting, server e siti', 'LP', 'AM', 'Netcup, Hostiq, Tilda, DigitalOcean']
+  ]],
+  ['F19', 'so', 'PR e regali ai clienti (dentro SO)', [
+    ['Omaggi clienti, gadget e merchandising', 'PC', 'FrS', 'Confezioni regalo alla chiusura delle trattative'],
+    ['PR: cene, conferenze, sponsorizzazioni', 'AM', 'SB', '']
+  ]]
+];
+
+// Il modello Excel ha un solo fondo per l'infragruppo (F11). L'applicazione ne
+// ha due — «Rimborso Investimenti» storico e «Rimborso Finanziamenti» al 20%
+// deciso dopo: qui si dice a chiare lettere, perché è una duplicazione da
+// sciogliere, non una svista del modello.
+const NOTE_COPERTURA = [
+  'Il modello Excel ha <b>un solo fondo infragruppo</b> (F11 «Rimborso Investimenti infrasocietà», 4% del ' +
+  'margine). L’applicazione ne ha due: <b>Fondo Rimborso Investimenti</b> (storico) e <b>Fondo Rimborso ' +
+  'Finanziamenti</b> (20% del margine, deciso dopo il modello). Le voci F11 sono state messe sul secondo. ' +
+  'Vanno unificati.',
+  'Nel foglio delle voci di spesa la sigla <b>FS</b> indica chi paga, e paga sempre il contabile ' +
+  '<b>Filippo Spreafico</b>; nel foglio dei responsabili la stessa sigla <b>FS</b> è invece Francesca ' +
+  'Severini. Qui Francesca è <b>FrS</b> e Filippo <b>FilS</b>, per non confonderli.',
+  'Due caselle del modello non nominano una persona: chi approva le spese di rappresentanza clienti ' +
+  '(F16.3, nel foglio c’è «consulenti») e chi approva gli abbonamenti software (F18, «abbonamenti»). ' +
+  'Qui sono provvisoriamente Patrizia e Angelina.',
+  '<b>Ogni giovedì</b> il consiglio finanziario approva gli ordini della settimana. Ogni acquisto oltre il ' +
+  'limite del responsabile richiede l’approvazione scritta del superiore <i>prima</i> di emettere il PO.'
+];
+
+// Categoria dell'applicazione → chi scrive il Purchase Order e chi lo approva.
+// Solo quello che il modello dice davvero: le categorie che il modello non
+// nomina restano senza responsabile, e l'applicazione lo segnala invece di
+// inventarne uno.
+const RESP_DEFAULT = {
+  'Mediazione Immobiliare':  ['AM', 'AM'],   // F1
+  'Marketing':               ['BK', 'AM'],   // F4
+  'Software':                ['LP', 'AM'],   // F18
+  'Attrezzature Ufficio':    ['YK', 'SB'],   // F16.1
+  'Stipendi':                ['AM', 'FilS'], // F6.1
+  'Consulenze':              ['AM', 'FilS'], // F6.3
+  'Onorario Professionista': ['AM', 'FilS'], // F6.2
+  'Onorario Notaio':         ['AM', 'FilS'], // F6.2
+  'Tasse':                   ['FilS', 'FilS'], // F5
+  'Sanzioni':                ['FilS', 'FilS'], // F5.2
+  'Formazione Esterna':      ['SB', 'AM'],   // F13
+  'Spese Condominiali':      ['FilS', 'AM'], // F14.2
+  'Spese Ufficio':           ['FilS', 'FilS'], // F17
+  'Commissioni':             ['AM', 'FilS'], // F15
+  'Auto e Trasferte':        ['SB', 'SB'],   // F16.4
+  'Rappresentanza':          ['AB', 'PC'],   // F16.3 + F19
+  'Finanziamento IC':        ['AM', 'AM'],   // F11.1
+  'Rimborso Finanziamenti':  ['AM', 'AM'],   // F11.2
+  'Investimento Immobiliare':['AM', 'AM'],
+  'Fondo Agenti':            ['AM', 'AM'],
+  'Fondo Partner':           ['AM', 'AM'],
+  'Fondo Dirigenza':         ['AM', 'AM'],
+  'Fondo Marketing & IT':    ['BK', 'AM'],
+  'Fondo IVA+Imposte':       ['FilS', 'FilS'],
+  'Fondo Retribuzioni':      ['AM', 'FilS'],
+  'Fondo Dividendi':         ['AM', 'AM'],
+  'Fondo CEO':               ['AM', 'AM'],
+  'Fondo Sviluppo':          ['BK', 'AM'],
+  'Fondo Riserve':           ['AM', 'AM'],
+  'Fondo Rimborso':          ['AM', 'AM'],
+  'Fondo Formazione':        ['SB', 'AM'],
+  'Fondo Affitti':           ['AM', 'AM'],
+  'Fondo SO':                ['SB', 'SB']
+};
+
+// Il fondo Spese Operative raccoglie cinque voci FRS diverse (F15…F19): dire
+// solo «Fondo Spese Operative» lascerebbe l'utente senza sapere quale riga del
+// modello sta usando.
+const CODICE_CAT = {
+  'Mediazione Immobiliare':'F1', 'Marketing':'F4', 'Stipendi':'F6.1', 'Consulenze':'F6.3',
+  'Onorario Professionista':'F6.2', 'Onorario Notaio':'F6.2', 'Tasse':'F5', 'Sanzioni':'F5.2',
+  'Finanziamento IC':'F11.1', 'Rimborso Finanziamenti':'F11.2', 'Formazione Esterna':'F13',
+  'Spese Condominiali':'F14.2', 'Commissioni':'F15', 'Attrezzature Ufficio':'F16.1',
+  'Auto e Trasferte':'F16.4', 'Rappresentanza':'F16.3', 'Spese Ufficio':'F17', 'Software':'F18'
+};
+
+function responsabileDi(nomeCat, quale){
+  const c = DATA.categorie.find(x => x.name === nomeCat);
+  const campo = quale === 'app' ? 'appr' : 'resp';
+  if(c && c[campo] !== undefined) return c[campo];
+  const d = RESP_DEFAULT[nomeCat];
+  if(!d) return '';
+  return SIGLA[quale === 'app' ? d[1] : d[0]] || '';
+}
+
+function setCatResp(idx, quale, v){
+  DATA.categorie[idx][quale === 'app' ? 'appr' : 'resp'] = v;
+  saveData();
+  renderCategorie();
+}
 
 function fondoDi(nomeCat){
   const c = DATA.categorie.find(x => x.name === nomeCat);
@@ -2320,6 +2570,87 @@ function disponibileFondo(fondoK, fino){
   return d;
 }
 
+// La tabella di copertura è un documento di governance: si legge per sapere
+// «questa spesa chi la paga e chi la firma», quindi va mostrata com'è scritta,
+// non riassunta. In fondo l'applicazione dice anche dove il modello tace.
+const AMBITI_PERSONA = {
+  'AM - Angelina':   ['Licenze software', 'Contratti & consulenti', 'Spese legali & notarili', 'Tasse & imposte',
+                      'Affitti', 'Spese di sviluppo IT', 'Commissioni di intermediazione'],
+  'SB - Silvia':     ['Spese operative ufficio (manutenzioni, pulizie)', 'Forniture (Mondoffice, Amazon)',
+                      'Corrieri & postali', 'Software gestionale', 'Stampa materiale promozionale',
+                      'Eventi networking', 'Spese HR (LinkedIn ecc.)', 'Licenze antiriciclaggio',
+                      'Portali immobiliari', 'Corsi formativi', 'Telefonia TIM'],
+  'PC - Patrizia':   ['Rappresentanza clienti', 'Materiali di presentazione', 'Commissioni di intermediazione'],
+  'FrS - Francesca': ['Marketing partner LinkedIn', 'Eventi networking', 'Omaggi business per i clienti',
+                      'Iscrizioni ad associazioni', 'Merchandising'],
+  'BK - Bogdan':     ['Advertising digitale', 'Digital marketing', 'Software marketing (mail, WhatsApp)',
+                      'Hosting & CRM'],
+  'AB - Alena':      ['Trasferte immobili', 'Materiali di vendita', 'Intrattenimento clienti',
+                      'Proposte di marketing'],
+  'YK - Yura':       ['Foto & video immobili', 'Rendering & virtual tour', 'Post-produzione esterna',
+                      'Attrezzatura'],
+  'LP - Liubov':     ['Licenze software e accessi', 'Manutenzione IT', 'Backup & sicurezza',
+                      'Archiviazione documentale'],
+  'FilS - Filippo':  ['Stipendi team', 'F24 & versamenti', 'Onorari studio commercialista e paghe',
+                      'Archiviazione documentale', 'Spese contabili & fiscali',
+                      'Spese ufficio (bollette, condominio)', 'Affitti', 'Tasse & imposte']
+};
+
+function renderCopertura(){
+  const body = document.getElementById('coperturaBody');
+  if(!body) return;
+
+  const note = document.getElementById('coperturaNote');
+  if(note) note.innerHTML = NOTE_COPERTURA.map(t =>
+    `<p class="small" style="background:#FFF8E1;border-left:3px solid #E67E22;padding:6px 10px;margin:6px 0;">${t}</p>`
+  ).join('');
+
+  body.innerHTML = COPERTURA_FRS.map(([cod, fondo, titolo, voci]) => {
+    const testa = `<tr style="background:#F4F6F7;"><td colspan="6" class="left"><b>${cod}</b> — ${titolo}</td></tr>`;
+    return testa + voci.map(([nome, req, app, esempi]) => `<tr>
+      <td class="small">${cod}</td>
+      <td class="left">${nome}</td>
+      <td class="left small">${FONDI_ETICHETTA[fondo] || '—'}</td>
+      <td class="small" title="${RESP_NOME[SIGLA[req]] || ''}">${req}</td>
+      <td class="small" title="${RESP_NOME[SIGLA[app]] || ''}">${app}</td>
+      <td class="left small" style="color:#666;">${esempi}</td>
+    </tr>`).join('');
+  }).join('');
+
+  const chi = document.getElementById('chiRichiede');
+  if(chi) chi.innerHTML = RESPONSABILI.map(([k, n, r]) => `
+    <div style="flex:1 1 240px;border:1px solid #E5E7E9;border-radius:5px;padding:8px 10px;">
+      <div><b>${k.split(' - ')[0]}</b> — ${n}</div>
+      <div class="small" style="color:#666;margin-bottom:4px;">${r}</div>
+      <div class="small">${(AMBITI_PERSONA[k] || []).map(a => `• ${a}`).join('<br>') || '—'}</div>
+    </div>`).join('') +
+    `<p class="small" style="flex:1 1 100%;margin-top:6px;">Gli ordini si approvano <b>ogni giovedì</b> in
+     consiglio finanziario. Filippo paga solo dopo il consiglio: stipendi, addebiti fiscali e fatture approvate.
+     Ogni acquisto oltre il limite del responsabile richiede l'approvazione scritta del superiore
+     <i>prima</i> di emettere il PO.</p>`;
+
+  // Dove il modello tace è più utile dirlo che riempirlo di default inventati:
+  // sono le decisioni che restano da prendere, non errori dell'applicazione.
+  const spesa = DATA.categorie.filter(c => c.type !== 'banca' || fondoDi(c.name));
+  const senzaFondo = spesa.filter(c => !fondoDi(c.name) && naturaDi(c.name) !== 'ricavo');
+  const senzaResp  = DATA.categorie.filter(c => fondoDi(c.name) && !responsabileDi(c.name, 'req'));
+  const box = document.getElementById('coperturaBuchi');
+  if(!box) return;
+  const pezzi = [];
+  const plur = (n, uno, molti) => n === 1 ? uno : `${n} ${molti}`;
+  if(senzaResp.length) pezzi.push(
+    `<b>${plur(senzaResp.length, 'Una categoria ha', 'categorie hanno')} un fondo ma nessun responsabile</b>: ` +
+    senzaResp.map(c => c.name).join(', ') + '. Il modello Excel non le nomina — assegni Lei chi firma, ' +
+    'in «Categorie Spese».');
+  if(senzaFondo.length) pezzi.push(
+    `<b>${plur(senzaFondo.length, 'Una categoria non è collegata', 'categorie non sono collegate')} ` +
+    'a nessun fondo</b>: ' + senzaFondo.map(c => c.name).join(', ') +
+    '. Su queste la capienza non viene verificata.');
+  box.innerHTML = pezzi.length
+    ? pezzi.map(t => `<p class="small" style="background:#FDEDEC;border-left:3px solid var(--red);padding:6px 10px;margin:6px 0;">${t}</p>`).join('')
+    : '<p class="small" style="color:var(--green);">Ogni categoria di spesa ha un fondo che la copre e un responsabile che firma.</p>';
+}
+
 let PIANO_APERTA = null;
 
 function apriSettimanaPiano(w){
@@ -2328,6 +2659,7 @@ function apriSettimanaPiano(w){
 }
 
 function renderPiano(){
+  renderCopertura();
   const body = document.getElementById('pianoBody');
   if(!body) return;
   const piano = pianoFondi();
@@ -2831,6 +3163,49 @@ function refreshDropdowns(){
   const bCat  = document.getElementById('b_cat');
   if(poCat){ const cur = poCat.value; poCat.innerHTML = getCatOptions('po'); if([...poCat.options].some(o=>o.value===cur)) poCat.value=cur; }
   if(bCat){  const cur = bCat.value;  bCat.innerHTML  = getCatOptions('banca'); if([...bCat.options].some(o=>o.value===cur))  bCat.value=cur; }
+  ['po_req','po_app'].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    const cur = el.value;
+    el.innerHTML = opzioniResponsabili();
+    if([...el.options].some(o => o.value === cur)) el.value = cur;
+  });
+  onPOCat();
+}
+
+function opzioniResponsabili(){
+  return '<option value="">— da assegnare —</option>' +
+    RESPONSABILI.map(([k, n, r]) => `<option value="${k}" title="${r}">${k.split(' - ')[0]} — ${n}</option>`).join('');
+}
+
+// Scegliendo la categoria si sa già chi deve firmare e quale fondo paga: farlo
+// ridigitare ogni volta è il modo più semplice per ritrovarsi ordini imputati
+// al fondo sbagliato. Riempie solo i campi non ancora toccati a mano.
+let PO_TOCCATO = {req: false, app: false};
+
+function onPOCat(){
+  const cat = (document.getElementById('po_cat') || {}).value;
+  const hint = document.getElementById('po_hint');
+  if(!cat){ if(hint) hint.textContent = ''; return; }
+  const req = responsabileDi(cat, 'req'), app = responsabileDi(cat, 'app');
+  const elReq = document.getElementById('po_req'), elApp = document.getElementById('po_app');
+  if(elReq && !PO_TOCCATO.req) elReq.value = [...elReq.options].some(o => o.value === req) ? req : '';
+  if(elApp && !PO_TOCCATO.app) elApp.value = [...elApp.options].some(o => o.value === app) ? app : '';
+  if(!hint) return;
+  const f = fondoDi(cat);
+  if(!f){
+    hint.innerHTML = '<span style="color:var(--red);">Nessun fondo collegato: la capienza non viene ' +
+      'verificata. Collegalo in «Categorie Spese».</span>';
+    return;
+  }
+  const d = document.getElementById('po_date');
+  const r = d && d.value ? settimanaFRS(d.value) : null;
+  const disp = r ? disponibileFondo(f, r.w) : null;
+  const cod = CODICE_CAT[cat];
+  hint.innerHTML = `Paga il <b>${FONDI_ETICHETTA[f]}</b>${cod ? ` (voce ${cod} del modello)` : ''}` +
+    (disp === null ? ' · indica la data per vedere la capienza'
+                   : ` · disponibile alla settimana ${r.w}: <b>${eur(disp)}</b>`) +
+    (req ? '' : ' · <span style="color:var(--red);">questa categoria non ha un responsabile nel modello</span>');
 }
 
 function renderCategorie(){
@@ -2852,6 +3227,14 @@ function renderCategorie(){
       <td><select onchange="setCatFondo(${idx},this.value)" style="font-size:11px;">
         <option value="">— nessuno —</option>
         ${FONDI_ELENCO.map(([k,et]) => `<option value="${k}" ${fondoDi(c.name)===k?'selected':''}>${et}</option>`).join('')}
+      </select></td>
+      <td><select onchange="setCatResp(${idx},'req',this.value)" style="font-size:11px;">
+        <option value="">— da assegnare —</option>
+        ${RESPONSABILI.map(([k,n]) => `<option value="${k}" ${responsabileDi(c.name,'req')===k?'selected':''}>${k.split(' - ')[0]} — ${n}</option>`).join('')}
+      </select></td>
+      <td><select onchange="setCatResp(${idx},'app',this.value)" style="font-size:11px;">
+        <option value="">— da assegnare —</option>
+        ${RESPONSABILI.map(([k,n]) => `<option value="${k}" ${responsabileDi(c.name,'app')===k?'selected':''}>${k.split(' - ')[0]} — ${n}</option>`).join('')}
       </select></td>
       <td><select onchange="setCatNatura(${idx},this.value)">
         <option value="" ${!naturaDi(c.name)?'selected':''}>— voce di spesa —</option>
@@ -2896,8 +3279,10 @@ function resetCategorie(){
 }
 
 function exportCategorie(){
-  const rows = [['Nome categoria','Tipo']];
-  DATA.categorie.forEach(c => rows.push([c.name, typeLabel[c.type]||c.type]));
+  const rows = [['Nome categoria','Tipo','Fondo di copertura','Chi richiede il PO','Chi approva','Natura']];
+  DATA.categorie.forEach(c => rows.push([c.name, typeLabel[c.type]||c.type,
+    FONDI_ETICHETTA[fondoDi(c.name)] || '', responsabileDi(c.name,'req'), responsabileDi(c.name,'app'),
+    naturaDi(c.name)]));
   downloadCSV('Bellavista_Categorie_Spese.csv', rows);
 }
 

@@ -150,13 +150,39 @@ ordine già pagato.
 con i numeri — importo, disponibile, quanto manca — e l'approvazione si può
 annullare. Non è un blocco: la decisione resta di chi approva, ma presa sapendo.
 
-### Quale fondo copre quale spesa
+### Cosa copre ogni fondo, e chi firma l'ordine
 
-È una decisione aziendale, non una regola tecnica. In **Categorie Spese** ogni
-categoria ha una colonna **Fondo di copertura**: il collegamento di partenza è
-una proposta (Marketing e Software → Fondo Marketing & IT, Stipendi → Fondo
-Retribuzioni, Formazione Esterna → Fondo Formazione, e così via) e va rivista
-prima di fidarsi dei numeri sulla capienza.
+Non è una regola tecnica ma una decisione aziendale, e la decisione esiste già:
+la tabella **🧭 Cosa copre ogni fondo** (in Pianificazione) è il modello Excel
+FRS di COMO LAKE ESTATE ricopiato voce per voce — fogli «Расходы — отв.+счета»
+e «Responsabili Ordini di Acquisto», governance interna di maggio 2026. Per
+ognuna delle diciannove voci F1…F19 dice quale fondo la paga, chi scrive il
+Purchase Order, chi lo approva e con quali fornitori tipici.
+
+Sotto, **Chi può richiedere che cosa** elenca per ciascuna delle nove persone
+gli ambiti su cui può emettere un ordine. Gli ordini si approvano ogni giovedì
+in consiglio finanziario; il contabile paga solo dopo il consiglio.
+
+Le conseguenze pratiche:
+
+- In **Categorie Spese** ogni categoria ha ora tre colonne di governance:
+  **Fondo di copertura**, **Chi richiede il PO**, **Chi approva** — precompilate
+  dal modello e modificabili.
+- In un **nuovo Purchase Order**, scegliendo la categoria si compilano da soli
+  richiedente e approvatore, e sotto compare quale fondo paga (con la voce del
+  modello, es. «voce F18») e quanto resta disponibile in quella settimana.
+- Un ordine per una categoria che il modello non nomina resta **senza firma** e
+  l'applicazione lo chiede prima di inserirlo, invece di ereditare il nome
+  dell'ordine precedente.
+- In fondo alla tabella l'applicazione elenca **le categorie che il modello non
+  copre**: sono decisioni da prendere, non errori.
+
+Due ambiguità del modello sono segnalate in chiaro invece di essere risolte di
+nascosto: la sigla **FS** indica Filippo Spreafico nel foglio delle spese e
+Francesca Severini in quello dei responsabili (qui sono `FilS` e `FrS`), e
+l'infragruppo ha un solo fondo nel modello (F11) contro i due
+dell'applicazione — **Rimborso Investimenti** e **Rimborso Finanziamenti** —
+che vanno unificati.
 
 ## Viste per ruolo
 
