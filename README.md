@@ -112,6 +112,19 @@ Trasferte** e **Sanzioni**. Senza di quelle un quarto dei movimenti finiva in
 Se si modifica una regola va aggiornata in entrambi i posti, altrimenti importare
 il CSV nell'app e farlo elaborare allo skill darebbe risultati diversi.
 
+## Viste per ruolo
+
+Il selettore in testata alterna due viste: **Utente** e **CEO — Direttore
+Finanziario**. Nella vista Utente restano nascosti il **Fondo Dividendi** e il
+**totale margine**, in tabella, nella dashboard e nell'export CSV. La scelta si
+ricorda fra una sessione e l'altra e parte da Utente.
+
+⚠️ **È un filtro di visualizzazione, non una protezione.** L'applicazione è un
+file HTML e i dati stanno nel browser: chiunque possa aprirla può leggerli
+comunque, anche i valori nascosti. Serve a non mostrare i compensi sullo schermo
+durante una riunione o una condivisione. Per una vera separazione servono utenze
+e un server.
+
 ## Tabella dei fondi a gruppi
 
 I quindici fondi occupavano ventidue colonne e per vedere il CHECK — la

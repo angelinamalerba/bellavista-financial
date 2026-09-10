@@ -101,6 +101,16 @@
 <header>
   <h1>BELLAVISTA INTERNATIONAL — Gestione Finanziaria</h1>
   <p>COMO LAKE ESTATE SRL · Distribuzione Fondi FRS · Purchase Orders · Riconciliazione Bancaria</p>
+  <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:12px;">
+    <label style="font-weight:bold;">Vista:</label>
+    <select id="sel_ruolo" onchange="cambiaRuolo(this.value)" style="font-size:12px;">
+      <option value="utente">Utente</option>
+      <option value="ceo">CEO — Direttore Finanziario</option>
+    </select>
+    <span id="badge_ruolo" style="opacity:.85;"></span>
+    <span style="opacity:.6; margin-left:auto;" title="I dati restano nel file e nel browser: chi apre l'applicazione può leggerli comunque">
+      filtro di visualizzazione, non una protezione</span>
+  </div>
 </header>
 
 <nav>
@@ -724,10 +734,11 @@ function loadData(){
     if(!d.categorie) d.categorie = DEFAULT_CATEGORIE.map(c=>({...c}));
     if(!d.debiti) d.debiti = [];
     if(!d.regoleApprese) d.regoleApprese = [];
+    if(!d.ruolo) d.ruolo = 'utente';   // di default la vista ristretta
     d.params = {...DEFAULT_PARAMS, ...(d.params || {})};
     return d;
   }
-  return { weeks:[], po:[], bank:[], params: DEFAULT_PARAMS, bankBalances:{conto:0, libro:0}, categorie: DEFAULT_CATEGORIE.map(c=>({...c})), debiti:[], regoleApprese:[] };
+  return { weeks:[], po:[], bank:[], params: DEFAULT_PARAMS, bankBalances:{conto:0, libro:0}, categorie: DEFAULT_CATEGORIE.map(c=>({...c})), debiti:[], regoleApprese:[], ruolo:'utente' };
 }
 let DATA = loadData();
 function saveData(){ localStorage.setItem('bellavista_data', JSON.stringify(DATA)); }
@@ -836,7 +847,7 @@ const GRUPPI_FONDI = {
   diretti: {label: 'Tot.Diretti', tot: 'totDiretti', voci: [
     ['agenti','Agenti 30%'], ['partner','Partner 5%'], ['dirigenza','Dirigenza 5%'], ['marketing','Marketing 10%']]},
   margine: {label: 'Margine 50%', tot: 'margine', voci: [
-    ['iva','IVA 35%'], ['retrib','Retrib. 24%'], ['dividendi','Dividendi 15%'], ['hr','HR'], ['ceo','CEO'],
+    ['iva','Tasse 35%'], ['retrib','Retrib. 24%'], ['dividendi','Dividendi 15%'], ['hr','HR'], ['ceo','CEO'],
     ['sviluppo','Sviluppo'], ['riserve','Riserve'], ['rimborso','Rimborso'], ['formazione','Formazione'],
     ['affitti','Affitti'], ['so','SO']]}
 };
@@ -864,10 +875,11 @@ function renderDistribuzione(){
              ${aperto ? '−' : '+'} ${g.label}</button>`,
       val: (w, c) => `<td class="gruppo-tot">${eur(c[g.tot])}</td>`, tot: g.tot
     });
-    if(aperto) g.voci.forEach(([campo, et]) =>
+    if(aperto) g.voci.filter(([campo]) => !campoRiservato(campo)).forEach(([campo, et]) =>
       colonne.push({th: et, val: (w, c) => `<td class="gruppo-voce">${eur(c[campo])}</td>`, tot: campo}));
   });
-  colonne.push({th: 'Tot.Margine', val: (w, c) => `<td>${eur(c.totMargine)}</td>`, tot: 'totMargine'});
+  if(!campoRiservato('totMargine'))
+    colonne.push({th: 'Tot.Margine', val: (w, c) => `<td>${eur(c.totMargine)}</td>`, tot: 'totMargine'});
   colonne.push({th: 'CHECK', tot: 'check',
     val: (w, c) => `<td class="${Math.abs(c.check) < 0.01 ? 'check-ok' : 'check-bad'}">${eur(c.check)}</td>`});
 
@@ -1048,7 +1060,7 @@ function renderBanca(){
 const paramLabels = [
   ['agenti','Fondo Agenti','ricavi'], ['partner','Fondo Partner','ricavi'],
   ['dirigenza','Fondo Dirigenza','ricavi'], ['marketing','Fondo Marketing & IT','ricavi'],
-  ['iva','Fondo IVA + Imposte','margine'], ['retrib','Fondo Retribuzioni + Tasse','margine'],
+  ['iva','Fondo Tasse + Imposte','margine'], ['retrib','Fondo Retribuzioni + Tasse','margine'],
   ['dividendi','Fondo Dividendi','margine'], ['hr','Fondo Obiettivi HR','margine'],
   ['ceo','Fondo Emolumento CEO','margine'], ['sviluppo','Fondo Sviluppo','margine'],
   ['riserve','Fondo Riserve','margine'], ['rimborso','Fondo Rimborso Investimenti','margine'],
@@ -1097,7 +1109,8 @@ function renderDashboard(){
     <div class="kpi"><div class="label">Ricavi Totali</div><div class="value">${eur(totals.amount)}</div></div>
     <div class="kpi"><div class="label">Tot. Fondi Diretti</div><div class="value">${eur(totals.totDiretti)}</div></div>
     <div class="kpi"><div class="label">Margine</div><div class="value">${eur(totals.margine)}</div></div>
-    <div class="kpi"><div class="label">Tot. Fondi Margine</div><div class="value">${eur(totals.totMargine)}</div></div>
+    ${campoRiservato('totMargine') ? '' :
+      `<div class="kpi"><div class="label">Tot. Fondi Margine</div><div class="value">${eur(totals.totMargine)}</div></div>`}
     <div class="kpi"><div class="label">Settimane registrate</div><div class="value">${DATA.weeks.length}</div></div>`;
 
   const poEl = document.getElementById('dashPO');
@@ -1138,15 +1151,23 @@ function downloadCSV(filename, rows){
 const numIT = n => Number(n).toFixed(2).replace('.', ',');
 
 function exportDistribuzione(){
-  const rows = [['Settimana','Ricavi','Fondo Agenti','Fondo Partner','Fondo Dirigenza','Fondo Marketing',
-    'Tot.Diretti','Margine','Fondo IVA','Fondo Retrib.','Fondo Dividendi','Fondo HR','Fondo CEO','Fondo Sviluppo',
-    'Fondo Riserve','Fondo Rimborso','Fondo Formazione','Fondo Affitti','Fondo SO','Tot.Margine','CHECK']];
-  DATA.weeks.forEach(w=>{
+  if(!vedeRiservato() && !confirm('Sei nella vista Utente: dividendi e totale margine non saranno esportati.\n\n' +
+      'Per il file completo passa alla vista CEO. Procedere comunque?')) return;
+  // Le colonne si costruiscono da un elenco filtrato, non a mano: un export che
+  // ignorasse il ruolo renderebbe inutile nasconderle a schermo.
+  const col = [
+    ['Fondo Agenti','agenti'], ['Fondo Partner','partner'], ['Fondo Dirigenza','dirigenza'],
+    ['Fondo Marketing','marketing'], ['Tot.Diretti','totDiretti'], ['Margine','margine'],
+    ['Fondo Tasse','iva'], ['Fondo Retrib.','retrib'], ['Fondo Dividendi','dividendi'],
+    ['Fondo HR','hr'], ['Fondo CEO','ceo'], ['Fondo Sviluppo','sviluppo'], ['Fondo Riserve','riserve'],
+    ['Fondo Rimborso','rimborso'], ['Fondo Formazione','formazione'], ['Fondo Affitti','affitti'],
+    ['Fondo SO','so'], ['Tot.Margine','totMargine'], ['CHECK','check']
+  ].filter(([, campo]) => !campoRiservato(campo));
+
+  const rows = [['Settimana', 'Ricavi', ...col.map(([et]) => et)]];
+  DATA.weeks.forEach(w => {
     const c = calcWeek(w.amount);
-    rows.push([w.date, numIT(w.amount), numIT(c.agenti), numIT(c.partner), numIT(c.dirigenza), numIT(c.marketing),
-      numIT(c.totDiretti), numIT(c.margine), numIT(c.iva), numIT(c.retrib), numIT(c.dividendi), numIT(c.hr), numIT(c.ceo),
-      numIT(c.sviluppo), numIT(c.riserve), numIT(c.rimborso), numIT(c.formazione), numIT(c.affitti), numIT(c.so),
-      numIT(c.totMargine), numIT(c.check)]);
+    rows.push([w.date, numIT(w.amount), ...col.map(([, campo]) => numIT(c[campo]))]);
   });
   downloadCSV('Bellavista_Distribuzione_Settimanale.csv', rows);
 }
@@ -1228,7 +1249,8 @@ function importJSON(input){
       categorie: (Array.isArray(d.categorie) && d.categorie.length) ? d.categorie : DEFAULT_CATEGORIE.map(c=>({...c})),
       deltaEdits: d.deltaEdits || {},
       debiti: d.debiti || [],
-      regoleApprese: d.regoleApprese || []
+      regoleApprese: d.regoleApprese || [],
+      ruolo: d.ruolo || 'utente'
     };
     saveData();
     refreshDropdowns();
@@ -2151,6 +2173,40 @@ function exportDebitiDettaglio(){
     .slice().sort((a, b) => String(a.date).localeCompare(String(b.date)))
     .forEach(x => rows.push([r.cp, x.date || '', x.desc, numIT(x.in || 0), numIT(x.out || 0), x.cat, x.fonte])));
   downloadCSV('Bellavista_Debiti_Crediti_Dettaglio.csv', rows);
+}
+
+// ---------- RUOLI DI VISUALIZZAZIONE ----------
+// ATTENZIONE: questo NON è un controllo di accesso. L'applicazione è un file
+// HTML sul computer e i dati stanno nel browser: chiunque possa aprire il file
+// può leggere tutto, anche i valori nascosti. Serve a non mostrare i compensi
+// sullo schermo durante una riunione o una condivisione, non a proteggerli.
+// Per una vera separazione servono utenze e un server.
+
+const VOCI_RISERVATE = ['dividendi'];        // fondi visibili solo alla direzione
+const TOTALI_RISERVATI = ['totMargine'];
+
+function ruolo(){ return DATA.ruolo === 'ceo' ? 'ceo' : 'utente'; }
+function vedeRiservato(){ return ruolo() === 'ceo'; }
+
+function campoRiservato(campo){
+  return !vedeRiservato() && (VOCI_RISERVATE.includes(campo) || TOTALI_RISERVATI.includes(campo));
+}
+
+function cambiaRuolo(v){
+  DATA.ruolo = v;
+  saveData();
+  aggiornaBadgeRuolo();
+  renderDistribuzione();
+  renderDashboard();
+}
+
+function aggiornaBadgeRuolo(){
+  const sel = document.getElementById('sel_ruolo');
+  if(sel) sel.value = ruolo();
+  const b = document.getElementById('badge_ruolo');
+  if(b) b.textContent = vedeRiservato()
+    ? 'vedi tutto, compresi dividendi e totale margine'
+    : 'dividendi e totale margine nascosti';
 }
 
 // ---------- SETTIMANE FRS DAI RICAVI IN BANCA ----------
@@ -3279,6 +3335,7 @@ function exportDelta(){
 
 // ---------- INIT ----------
 renderCategorie();
+aggiornaBadgeRuolo();
 renderDistribuzione();
 renderPO();
 renderDeltaDashboard();

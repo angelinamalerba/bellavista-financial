@@ -57,7 +57,7 @@ ETICHETTE = {
     "partner": "Fondo Partner",
     "dirigenza": "Fondo Dirigenza",
     "marketing": "Fondo Marketing & IT",
-    "iva": "Fondo IVA + Imposte",
+    "iva": "Fondo Tasse + Imposte",
     "retrib": "Fondo Retribuzioni + Tasse",
     "dividendi": "Fondo Dividendi",
     "hr": "Fondo Obiettivi HR",
