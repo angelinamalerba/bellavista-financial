@@ -112,6 +112,34 @@ Trasferte** e **Sanzioni**. Senza di quelle un quarto dei movimenti finiva in
 Se si modifica una regola va aggiornata in entrambi i posti, altrimenti importare
 il CSV nell'app e farlo elaborare allo skill darebbe risultati diversi.
 
+## Pianificazione: budget dei fondi e spesa sotto
+
+Ogni settimana distribuisce i ricavi nei quindici fondi FRS. La scheda
+**📊 Pianificazione** (Distribuzione Settimanale) mostra per ogni settimana
+quanto di quel budget è già **impegnato** dai Purchase Orders approvati, quanto
+è **davvero uscito** dal conto, e quanto **resta**, fondo per fondo, con una
+barra di consumo e l'elenco degli ordini che lo stanno usando.
+
+Il disponibile è **cumulato, non settimanale**: quello che non si spende in una
+settimana resta per quelle dopo. Ragionare per settimana isolata direbbe che un
+fondo è scoperto solo perché l'incasso è arrivato più tardi.
+
+Impegni e uscite sono tenuti distinti apposta: l'impegno è il Purchase Order
+approvato, l'uscita è il movimento bancario. Sommarli conterebbe due volte un
+ordine già pagato.
+
+**Approvare un ordine oltre la capienza del suo fondo** fa comparire un avviso
+con i numeri — importo, disponibile, quanto manca — e l'approvazione si può
+annullare. Non è un blocco: la decisione resta di chi approva, ma presa sapendo.
+
+### Quale fondo copre quale spesa
+
+È una decisione aziendale, non una regola tecnica. In **Categorie Spese** ogni
+categoria ha una colonna **Fondo di copertura**: il collegamento di partenza è
+una proposta (Marketing e Software → Fondo Marketing & IT, Stipendi → Fondo
+Retribuzioni, Formazione Esterna → Fondo Formazione, e così via) e va rivista
+prima di fidarsi dei numeri sulla capienza.
+
 ## Viste per ruolo
 
 Il selettore in testata alterna due viste: **Utente** e **CEO — Direttore

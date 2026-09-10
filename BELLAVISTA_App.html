@@ -103,7 +103,7 @@
   <p>COMO LAKE ESTATE SRL · Distribuzione Fondi FRS · Purchase Orders · Riconciliazione Bancaria</p>
   <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:12px;">
     <label style="font-weight:bold;">Vista:</label>
-    <select id="sel_ruolo" onchange="cambiaRuolo(this.value)" style="font-size:12px;">
+    <select id="sel_ruolo" onchange="cambiaRuolo(this.value)" style="font-size:12px; width:auto; min-width:230px;">
       <option value="utente">Utente</option>
       <option value="ceo">CEO — Direttore Finanziario</option>
     </select>
@@ -183,6 +183,24 @@
           <tbody id="genSettBody"></tbody>
         </table>
         </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📊 Pianificazione — budget dei fondi e spesa sotto</h2>
+      <p class="small">Ogni settimana distribuisce i ricavi nei fondi: qui sotto si vede quanto di quel budget
+      è già impegnato dai Purchase Orders approvati, quanto è davvero uscito dal conto, e quanto resta.
+      Il <b>disponibile è cumulato</b>, non settimanale: quello che non si spende in una settimana resta
+      per quelle dopo, altrimenti un fondo sembrerebbe scoperto solo perché l'incasso è arrivato più tardi.
+      Approvando un ordine oltre la capienza del suo fondo l'applicazione avvisa con i numeri in mano.</p>
+      <p class="small"><b>Quale fondo copre quale spesa</b> è una decisione aziendale, non una regola tecnica:
+      il collegamento di partenza è una proposta e si cambia categoria per categoria in «Categorie Spese».</p>
+      <div class="table-wrap">
+      <table id="pianoTable">
+        <thead><tr><th>Sett.</th><th>Periodo</th><th>Ricavi</th><th>Impegnato (PO)</th>
+          <th>Uscite banca</th><th>Capienza</th></tr></thead>
+        <tbody id="pianoBody"></tbody>
+      </table>
       </div>
     </div>
 
@@ -555,7 +573,7 @@
       </div>
       <div class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th class="left" style="min-width:240px;">Nome categoria</th><th>Tipo</th><th>Natura</th><th>Usata in</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th class="left" style="min-width:240px;">Nome categoria</th><th>Tipo</th><th>Fondo di copertura</th><th>Natura</th><th>Usata in</th><th></th></tr></thead>
         <tbody id="catBody"></tbody>
       </table>
       </div>
@@ -860,6 +878,7 @@ function toggleGruppoFondi(k){
 }
 
 function renderDistribuzione(){
+  renderPiano();
   const body = document.getElementById('distBody');
   const head = document.getElementById('distHead');
   if(!body || !head) return;
@@ -929,7 +948,14 @@ function addPO(){
   renderPO();
 }
 function deletePO(idx){ DATA.po.splice(idx,1); saveData(); renderPO(); }
-function setPOStatus(idx, status){ DATA.po[idx].status = status; saveData(); renderPO(); }
+function setPOStatus(idx, v){
+  if(!verificaCapienza(idx, v)){ renderPO(); return; }   // annullato: la tendina torna com'era
+  DATA.po[idx].status = v;
+  saveData();
+  renderPO();
+  renderDashboard();
+  renderPiano();
+}
 
 function renderPO(){
   const body = document.getElementById('poBody');
@@ -2175,6 +2201,184 @@ function exportDebitiDettaglio(){
   downloadCSV('Bellavista_Debiti_Crediti_Dettaglio.csv', rows);
 }
 
+// ---------- PIANIFICAZIONE: BUDGET PER FONDO E SPESA SOTTO ----------
+// La distribuzione diceva quanto entra in ogni fondo, ma non quanto ne esce:
+// per sapere se una spesa era sostenibile bisognava tenerlo a mente. Qui ogni
+// settimana diventa un budget per fondo, con sotto gli ordini che lo consumano,
+// e l'approvazione di un Purchase Order si scontra con la capienza residua.
+//
+// Il collegamento fra categoria di spesa e fondo che la copre è una decisione
+// aziendale, non una regola tecnica: quello qui sotto è un default, cambiabile
+// per ogni categoria in «Categorie Spese».
+
+const FONDI_ELENCO = [
+  ['agenti','Fondo Agenti'], ['partner','Fondo Partner'], ['dirigenza','Fondo Dirigenza'],
+  ['marketing','Fondo Marketing & IT'], ['iva','Fondo Tasse + Imposte'], ['retrib','Fondo Retribuzioni'],
+  ['dividendi','Fondo Dividendi'], ['hr','Fondo Obiettivi HR'], ['ceo','Fondo Emolumento CEO'],
+  ['sviluppo','Fondo Sviluppo'], ['riserve','Fondo Riserve'], ['rimborso','Fondo Rimborso Investimenti'],
+  ['formazione','Fondo Formazione'], ['affitti','Fondo Affitti'], ['so','Fondo Spese Operative']
+];
+const FONDI_ETICHETTA = Object.fromEntries(FONDI_ELENCO);
+
+const FONDO_DEFAULT = {
+  'Marketing': 'marketing', 'Software': 'marketing', 'Attrezzature Ufficio': 'marketing',
+  'Stipendi': 'retrib', 'Tasse': 'iva', 'Sanzioni': 'iva',
+  'Formazione Esterna': 'formazione',
+  'Spese Ufficio': 'affitti', 'Spese Condominiali': 'affitti',
+  'Consulenze': 'so', 'Onorario Professionista': 'so', 'Onorario Notaio': 'so',
+  'Commissioni': 'so', 'Assicurazioni': 'so', 'Auto e Trasferte': 'so',
+  'Rappresentanza': 'ceo', 'Fattura Fornitore': 'so', 'Altro': 'so',
+  'Investimento Immobiliare': 'rimborso', 'Mediazione Immobiliare': 'agenti'
+};
+
+function fondoDi(nomeCat){
+  const c = DATA.categorie.find(x => x.name === nomeCat);
+  if(c && c.fondo !== undefined) return c.fondo;
+  return FONDO_DEFAULT[nomeCat] || '';
+}
+
+function setCatFondo(idx, v){
+  DATA.categorie[idx].fondo = v;
+  saveData();
+  renderCategorie();
+  renderPiano();
+}
+
+// Il budget di un fondo non è settimanale ma cumulato: quello che non si spende
+// in una settimana resta disponibile in quelle dopo. Ragionare per settimana
+// isolata direbbe che un fondo è scoperto solo perché l'incasso è arrivato prima.
+function pianoFondi(){
+  const settimane = DATA.weeks
+    .map(w => ({...w, r: settimanaFRS(w.date)}))
+    .filter(w => w.r)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  // impegni: sono i Purchase Orders approvati o pagati, cioè le spese decise.
+  // I movimenti bancari restano a parte come cassa effettivamente uscita: un PO
+  // già pagato comparirebbe due volte se si sommassero.
+  const impegni = {};
+  DATA.po.forEach((o, idx) => {
+    if(o.status !== 'approvato' && o.status !== 'pagato') return;
+    const r = o.date ? settimanaFRS(o.date) : null;
+    const f = fondoDi(o.cat);
+    if(!r || !f) return;
+    (impegni[r.w] = impegni[r.w] || {})[f] = ((impegni[r.w] || {})[f] || 0) + (o.amount || 0);
+  });
+  const uscite = {};
+  DATA.bank.forEach(m => {
+    if(!(m.out > 0) || m.gir) return;
+    const r = settimanaFRS(m.date);
+    const f = fondoDi(m.cat);
+    if(!r || !f) return;
+    (uscite[r.w] = uscite[r.w] || {})[f] = ((uscite[r.w] || {})[f] || 0) + m.out;
+  });
+
+  const cumulato = {};
+  return settimane.map(w => {
+    const c = calcWeek(w.amount);
+    const fondi = FONDI_ELENCO.map(([k, et]) => {
+      const budget = c[k] || 0;
+      const imp = (impegni[w.r.w] || {})[k] || 0;
+      const usc = (uscite[w.r.w] || {})[k] || 0;
+      cumulato[k] = (cumulato[k] || 0) + budget - imp;
+      return {k, et, budget, impegnato: imp, uscite: usc, disponibile: cumulato[k]};
+    });
+    return {...w, w: w.r.w, start: w.r.start, end: w.r.end, calc: c, fondi};
+  });
+}
+
+// Quanto resta in un fondo fino alla settimana indicata compresa: è il numero
+// che decide se un ordine si può approvare.
+function disponibileFondo(fondoK, fino){
+  let d = 0;
+  pianoFondi().forEach(s => { if(s.w <= fino) d = s.fondi.find(f => f.k === fondoK).disponibile; });
+  return d;
+}
+
+let PIANO_APERTA = null;
+
+function apriSettimanaPiano(w){
+  PIANO_APERTA = PIANO_APERTA === w ? null : w;
+  renderPiano();
+}
+
+function renderPiano(){
+  const body = document.getElementById('pianoBody');
+  if(!body) return;
+  const piano = pianoFondi();
+  body.innerHTML = '';
+  if(piano.length === 0){
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#999;">
+      Nessuna settimana con ricavi. Ricostruiscile dai ricavi in banca qui sopra.</td></tr>`;
+    return;
+  }
+
+  piano.forEach(s => {
+    const imp = s.fondi.reduce((a, f) => a + f.impegnato, 0);
+    const usc = s.fondi.reduce((a, f) => a + f.uscite, 0);
+    const scoperti = s.fondi.filter(f => f.disponibile < -0.005);
+    const aperta = PIANO_APERTA === s.w;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td><button class="linkish" onclick="apriSettimanaPiano(${s.w})">${aperta ? '▾' : '▸'} W${s.w}</button></td>
+       <td class="small">${ddmm(s.start)} – ${ddmm(s.end)}</td>
+       <td>${eur(s.amount)}</td>
+       <td>${imp ? eur(imp) : '—'}</td>
+       <td>${usc ? eur(usc) : '—'}</td>
+       <td>${scoperti.length
+          ? `<span class="badge rifiutato">${scoperti.length} fond${scoperti.length === 1 ? 'o scoperto' : 'i scoperti'}</span>`
+          : '<span class="badge pagato">capienza ok</span>'}</td>`;
+    body.appendChild(tr);
+
+    if(!aperta) return;
+    const righe = s.fondi
+      .filter(f => !campoRiservato(f.k))          // in vista Utente i fondi riservati restano fuori
+      .filter(f => f.budget || f.impegnato || f.uscite).map(f => {
+      const quota = f.budget > 0 ? Math.min(100, (f.impegnato / f.budget) * 100) : (f.impegnato ? 100 : 0);
+      const colore = f.disponibile < -0.005 ? 'var(--red)' : (quota > 85 ? '#E67E22' : 'var(--green)');
+      const ordini = DATA.po.filter(o => (o.status === 'approvato' || o.status === 'pagato') &&
+        o.date && settimanaFRS(o.date) && settimanaFRS(o.date).w === s.w && fondoDi(o.cat) === f.k);
+      return `<tr>
+        <td class="left">${f.et}</td>
+        <td>${eur(f.budget)}</td>
+        <td>${f.impegnato ? eur(f.impegnato) : '—'}</td>
+        <td>${f.uscite ? eur(f.uscite) : '—'}</td>
+        <td class="${f.disponibile < -0.005 ? 'delta-neg' : 'delta-pos'}">${eur(f.disponibile)}</td>
+        <td style="width:140px;"><div style="background:#eee;border-radius:3px;height:10px;overflow:hidden;">
+          <div style="width:${quota.toFixed(1)}%;background:${colore};height:100%;"></div></div></td>
+        <td class="left small">${ordini.map(o => `${o.supplier} (${eur(o.amount)})`).join(' · ') || ''}</td>
+      </tr>`;
+    }).join('');
+    const det = document.createElement('tr');
+    det.innerHTML = `<td colspan="6" style="background:#FAFAFA;padding:0 10px 10px 10px;">
+      <table style="margin-top:6px;">
+        <thead><tr><th class="left">Fondo</th><th>Budget settimana</th><th>Impegnato (PO)</th>
+          <th>Uscite banca</th><th>Disponibile cumulato</th><th>Consumo</th><th class="left">Ordini</th></tr></thead>
+        <tbody>${righe}</tbody>
+      </table></td>`;
+    body.appendChild(det);
+  });
+}
+
+// Approvare un ordine oltre la capienza del fondo è la cosa che questa schermata
+// esiste per impedire: qui il controllo avviene prima di cambiare lo stato.
+function verificaCapienza(idx, nuovoStato){
+  const o = DATA.po[idx];
+  if(nuovoStato !== 'approvato' && nuovoStato !== 'pagato') return true;
+  const f = fondoDi(o.cat);
+  if(!f){
+    return confirm(`La categoria «${o.cat}» non è collegata a nessun fondo, quindi non c'è capienza da ` +
+                   'verificare.\n\nCollegala in Categorie Spese, oppure procedi senza controllo.');
+  }
+  const r = o.date ? settimanaFRS(o.date) : null;
+  if(!r) return confirm('L\'ordine non ha una data dentro le 52 settimane FRS: capienza non verificabile.\n\nProcedere?');
+  const disp = disponibileFondo(f, r.w);
+  if(disp >= o.amount - 0.005) return true;
+  return confirm(`⚠️ ${FONDI_ETICHETTA[f]} non ha capienza per questo ordine.\n\n` +
+    `Ordine: ${eur(o.amount)}\nDisponibile alla settimana ${r.w}: ${eur(disp)}\n` +
+    `Mancano: ${eur(o.amount - disp)}\n\nApprovare comunque?`);
+}
+
 // ---------- RUOLI DI VISUALIZZAZIONE ----------
 // ATTENZIONE: questo NON è un controllo di accesso. L'applicazione è un file
 // HTML sul computer e i dati stanno nel browser: chiunque possa aprire il file
@@ -2306,6 +2510,7 @@ function generaSettimane(){
   renderDistribuzione();
   renderDashboard();
   renderDeltaDashboard();
+  renderPiano();
   anteprimaSettimane();
   alert(`✅ Ricostruite ${righe.length} settimane per ${eur(tot)}.\n\n` +
         'Aggiornata anche la scheda Delta 2025/2026 con le fatture di ogni settimana.');
@@ -2618,6 +2823,10 @@ function renderCategorie(){
         <option value="entrambi" ${c.type==='entrambi'?'selected':''}>PO + Banca</option>
         <option value="po" ${c.type==='po'?'selected':''}>Solo PO</option>
         <option value="banca" ${c.type==='banca'?'selected':''}>Solo Banca</option>
+      </select></td>
+      <td><select onchange="setCatFondo(${idx},this.value)" style="font-size:11px;">
+        <option value="">— nessuno —</option>
+        ${FONDI_ELENCO.map(([k,et]) => `<option value="${k}" ${fondoDi(c.name)===k?'selected':''}>${et}</option>`).join('')}
       </select></td>
       <td><select onchange="setCatNatura(${idx},this.value)">
         <option value="" ${!naturaDi(c.name)?'selected':''}>— voce di spesa —</option>
