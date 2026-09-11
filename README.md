@@ -123,12 +123,20 @@ sottofinanziarle sposta solo il problema; la fetta maggiore esce dai **Dividendi
 che scendono dal 15% al 7%**, perché non si distribuisce utile mentre si ha
 debito da rimborsare; il resto in proporzione dai fondi discrezionali.
 
-La categoria di spesa **Finanziamento IC** è collegata a questo fondo, così i
-rimborsi lo consumano nella pianificazione.
+Le categorie **Finanziamento IC** e **Rimborso Finanziamenti** sono collegate a
+questo fondo, così i rimborsi lo consumano nella pianificazione.
+
+**È l'unico fondo per l'infragruppo.** Il precedente *Fondo Rimborso
+Investimenti* copriva la stessa voce del modello FRS (F11) e non esiste più: la
+sua quota è tornata agli altri fondi del margine, che salgono del 18%. Nel
+modello Excel quella voce vale il 4%; il 20% è la decisione presa dopo, per
+rientrare dei finanziamenti infragruppo.
 
 ⚠️ Chi ha dati salvati da prima ha le vecchie percentuali: sommate al nuovo 20%
 farebbero 120% e il CHECK va in rosso. Il pulsante **↺ Applica il modello con il
 Fondo Rimborso Finanziamenti** (Parametri FRS) rimette tutto a posto in un clic.
+All'apertura l'applicazione fonde da sola la quota del vecchio fondo in questo,
+così il CHECK resta dov'era finché non si preme il pulsante.
 
 ## Pianificazione: budget dei fondi e spesa sotto
 
@@ -177,12 +185,9 @@ Le conseguenze pratiche:
 - In fondo alla tabella l'applicazione elenca **le categorie che il modello non
   copre**: sono decisioni da prendere, non errori.
 
-Due ambiguità del modello sono segnalate in chiaro invece di essere risolte di
+Un'ambiguità del modello è segnalata in chiaro invece di essere risolta di
 nascosto: la sigla **FS** indica Filippo Spreafico nel foglio delle spese e
-Francesca Severini in quello dei responsabili (qui sono `FilS` e `FrS`), e
-l'infragruppo ha un solo fondo nel modello (F11) contro i due
-dell'applicazione — **Rimborso Investimenti** e **Rimborso Finanziamenti** —
-che vanno unificati.
+Francesca Severini in quello dei responsabili — qui sono `FilS` e `FrS`.
 
 ## Viste per ruolo
 

@@ -717,9 +717,9 @@
 const DEFAULT_PARAMS = {
   agenti:0.30, partner:0.05, dirigenza:0.05, marketing:0.10,
   iva:0.35, retrib:0.24, dividendi:0.07, debiti:0.2,
-  hr:0.01410687022900764, ceo:0.02137404580152672, sviluppo:0.02137404580152672,
-  riserve:0.01282442748091603, rimborso:0.02137404580152672,
-  formazione:0.00854961832061069, affitti:0.01709923664122138, so:0.0232977099236642
+  hr:0.016648648648648647, ceo:0.025225225225225224, sviluppo:0.025225225225225224,
+  riserve:0.015135135135135133, formazione:0.010090090090090091,
+  affitti:0.020180180180180182, so:0.02749549549549572
 };
 
 const DEFAULT_CATEGORIE = [
@@ -770,6 +770,19 @@ const DEFAULT_CATEGORIE = [
   {name:'Altro', type:'entrambi'}
 ];
 
+// Il Fondo Rimborso Investimenti e il Fondo Rimborso Finanziamenti coprivano la
+// stessa cosa — il rientro dei finanziamenti infragruppo, la voce F11 del
+// modello — e sono stati unificati nel secondo. Nei dati già salvati le due
+// quote vanno sommate, non una buttata via: toglierla e basta lascerebbe il
+// CHECK fuori dallo zero senza che nessuno abbia cambiato niente.
+function migraFondoRimborso(d){
+  if(d.params && d.params.rimborso !== undefined){
+    d.params.debiti = (d.params.debiti || 0) + d.params.rimborso;
+    delete d.params.rimborso;
+  }
+  (d.categorie || []).forEach(c => { if(c.fondo === 'rimborso') c.fondo = 'debiti'; });
+}
+
 function loadData(){
   const raw = localStorage.getItem('bellavista_data');
   if(raw){
@@ -780,6 +793,7 @@ function loadData(){
     if(!d.regoleApprese) d.regoleApprese = [];
     if(!d.ruolo) d.ruolo = 'utente';   // di default la vista ristretta
     d.params = {...DEFAULT_PARAMS, ...(d.params || {})};
+    migraFondoRimborso(d);
     return d;
   }
   return { weeks:[], po:[], bank:[], params: DEFAULT_PARAMS, bankBalances:{conto:0, libro:0}, categorie: DEFAULT_CATEGORIE.map(c=>({...c})), debiti:[], regoleApprese:[], ruolo:'utente' };
@@ -816,10 +830,10 @@ function calcWeek(amount){
   const margine = amount*0.5;
   const iva = margine*p.iva, retrib = margine*p.retrib, dividendi = margine*p.dividendi;
   const debiti = margine*p.debiti, hr = margine*p.hr, ceo = margine*p.ceo, sviluppo = margine*p.sviluppo, riserve = margine*p.riserve,
-        rimborso = margine*p.rimborso, formazione = margine*p.formazione, affitti = margine*p.affitti, so = margine*p.so;
-  const totMargine = iva+retrib+dividendi+debiti+hr+ceo+sviluppo+riserve+rimborso+formazione+affitti+so;
+        formazione = margine*p.formazione, affitti = margine*p.affitti, so = margine*p.so;
+  const totMargine = iva+retrib+dividendi+debiti+hr+ceo+sviluppo+riserve+formazione+affitti+so;
   const check = amount - totDiretti - totMargine;
-  return {agenti,partner,dirigenza,marketing,totDiretti,margine,iva,retrib,dividendi,debiti,hr,ceo,sviluppo,riserve,rimborso,formazione,affitti,so,totMargine,check};
+  return {agenti,partner,dirigenza,marketing,totDiretti,margine,iva,retrib,dividendi,debiti,hr,ceo,sviluppo,riserve,formazione,affitti,so,totMargine,check};
 }
 
 // ---------- SETTIMANE FRS ----------
@@ -892,7 +906,7 @@ const GRUPPI_FONDI = {
     ['agenti','Agenti 30%'], ['partner','Partner 5%'], ['dirigenza','Dirigenza 5%'], ['marketing','Marketing 10%']]},
   margine: {label: 'Margine 50%', tot: 'margine', voci: [
     ['iva','Tasse 35%'], ['retrib','Retrib. 24%'], ['dividendi','Dividendi 7%'], ['debiti','Rimb. Finanz. 20%'], ['hr','HR'], ['ceo','CEO'],
-    ['sviluppo','Sviluppo'], ['riserve','Riserve'], ['rimborso','Rimborso'], ['formazione','Formazione'],
+    ['sviluppo','Sviluppo'], ['riserve','Riserve'], ['formazione','Formazione'],
     ['affitti','Affitti'], ['so','SO']]}
 };
 
@@ -1123,7 +1137,7 @@ const paramLabels = [
   ['dividendi','Fondo Dividendi','margine'], ['debiti','Fondo Rimborso Finanziamenti','margine'],
   ['hr','Fondo Obiettivi HR','margine'],
   ['ceo','Fondo Emolumento CEO','margine'], ['sviluppo','Fondo Sviluppo','margine'],
-  ['riserve','Fondo Riserve','margine'], ['rimborso','Fondo Rimborso Investimenti','margine'],
+  ['riserve','Fondo Riserve','margine'],
   ['formazione','Fondo Formazione','margine'], ['affitti','Fondo Affitti','margine'], ['so','Fondo Spese Operative','margine']
 ];
 
@@ -1132,8 +1146,9 @@ const paramLabels = [
 // rosso. Questo pulsante riporta tutto al modello proposto in un colpo.
 function applicaModelloProposto(){
   if(!confirm('Riportare le percentuali al modello con il Fondo Rimborso Finanziamenti al 20%?\n\n' +
-              'Tasse 35% e Retribuzioni 24% restano invariate, i Dividendi scendono al 7% e gli altri ' +
-              'fondi si riducono in proporzione.\n\nLe percentuali attuali verranno sostituite.')) return;
+              'Tasse 35% e Retribuzioni 24% restano invariate, i Dividendi scendono al 7%.\n' +
+              'Il Fondo Rimborso Investimenti non esiste più: copriva la stessa voce F11 e la sua quota ' +
+              'torna agli altri fondi, che salgono del 18%.\n\nLe percentuali attuali verranno sostituite.')) return;
   DATA.params = {...DEFAULT_PARAMS};
   saveData();
   renderParams();
@@ -1235,7 +1250,7 @@ function exportDistribuzione(){
     ['Fondo Marketing','marketing'], ['Tot.Diretti','totDiretti'], ['Margine','margine'],
     ['Fondo Tasse','iva'], ['Fondo Retrib.','retrib'], ['Fondo Dividendi','dividendi'], ['Fondo Rimborso Finanziamenti','debiti'],
     ['Fondo HR','hr'], ['Fondo CEO','ceo'], ['Fondo Sviluppo','sviluppo'], ['Fondo Riserve','riserve'],
-    ['Fondo Rimborso','rimborso'], ['Fondo Formazione','formazione'], ['Fondo Affitti','affitti'],
+    ['Fondo Formazione','formazione'], ['Fondo Affitti','affitti'],
     ['Fondo SO','so'], ['Tot.Margine','totMargine'], ['CHECK','check']
   ].filter(([, campo]) => !campoRiservato(campo));
 
@@ -2264,7 +2279,7 @@ const FONDI_ELENCO = [
   ['agenti','Fondo Agenti'], ['partner','Fondo Partner'], ['dirigenza','Fondo Dirigenza'],
   ['marketing','Fondo Marketing & IT'], ['iva','Fondo Tasse + Imposte'], ['retrib','Fondo Retribuzioni'],
   ['dividendi','Fondo Dividendi'], ['debiti','Fondo Rimborso Finanziamenti'], ['hr','Fondo Obiettivi HR'], ['ceo','Fondo Emolumento CEO'],
-  ['sviluppo','Fondo Sviluppo'], ['riserve','Fondo Riserve'], ['rimborso','Fondo Rimborso Investimenti'],
+  ['sviluppo','Fondo Sviluppo'], ['riserve','Fondo Riserve'],
   ['formazione','Fondo Formazione'], ['affitti','Fondo Affitti'], ['so','Fondo Spese Operative']
 ];
 const FONDI_ETICHETTA = Object.fromEntries(FONDI_ELENCO);
@@ -2274,7 +2289,7 @@ const FONDO_DEFAULT = {
   'Fondo Agenti':'agenti', 'Fondo Partner':'partner', 'Fondo Dirigenza':'dirigenza',
   'Fondo Marketing & IT':'marketing', 'Fondo IVA+Imposte':'iva', 'Fondo Retribuzioni':'retrib',
   'Fondo Dividendi':'dividendi', 'Fondo CEO':'ceo', 'Fondo Sviluppo':'sviluppo',
-  'Fondo Riserve':'riserve', 'Fondo Rimborso':'rimborso', 'Fondo Formazione':'formazione',
+  'Fondo Riserve':'riserve', 'Fondo Rimborso':'debiti', 'Fondo Formazione':'formazione',
   'Fondo Affitti':'affitti', 'Fondo SO':'so',
   // Spese, secondo il modello Excel (il codice FRS a fianco dice da quale voce viene).
   'Mediazione Immobiliare': 'agenti',        // F1  provvigioni agenti
@@ -2296,7 +2311,7 @@ const FONDO_DEFAULT = {
   'Software': 'so',                          // F18 abbonamenti SaaS
   // Categorie che il modello Excel non nomina: collegamento di ripiego, da confermare.
   'Assicurazioni': 'so', 'Fattura Fornitore': 'so', 'Altro': 'so',
-  'Investimento Immobiliare': 'rimborso'
+  'Investimento Immobiliare': 'debiti'
 };
 
 // ---------- CHI COPRE COSA E CHI CHIEDE: IL MODELLO AZIENDALE ----------
@@ -2426,10 +2441,10 @@ const COPERTURA_FRS = [
 // deciso dopo: qui si dice a chiare lettere, perché è una duplicazione da
 // sciogliere, non una svista del modello.
 const NOTE_COPERTURA = [
-  'Il modello Excel ha <b>un solo fondo infragruppo</b> (F11 «Rimborso Investimenti infrasocietà», 4% del ' +
-  'margine). L’applicazione ne ha due: <b>Fondo Rimborso Investimenti</b> (storico) e <b>Fondo Rimborso ' +
-  'Finanziamenti</b> (20% del margine, deciso dopo il modello). Le voci F11 sono state messe sul secondo. ' +
-  'Vanno unificati.',
+  'La voce F11 dell’infragruppo è coperta dal <b>Fondo Rimborso Finanziamenti</b>, al <b>20% del margine</b>. ' +
+  'Il vecchio Fondo Rimborso Investimenti copriva la stessa voce ed è stato unito a questo: la sua quota è ' +
+  'tornata agli altri fondi del margine, che salgono del 18%. Nel modello Excel la stessa voce vale il 4%: ' +
+  'il 20% è la decisione presa dopo, per rientrare dei finanziamenti infragruppo.',
   'Nel foglio delle voci di spesa la sigla <b>FS</b> indica chi paga, e paga sempre il contabile ' +
   '<b>Filippo Spreafico</b>; nel foglio dei responsabili la stessa sigla <b>FS</b> è invece Francesca ' +
   'Severini. Qui Francesca è <b>FrS</b> e Filippo <b>FilS</b>, per non confonderli.',

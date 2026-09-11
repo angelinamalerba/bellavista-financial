@@ -43,19 +43,21 @@ DIRETTI = {
 # Retribuzioni (obblighi di legge), esce soprattutto dai Dividendi — non si
 # distribuisce utile mentre si ha debito — e per il resto in proporzione dai
 # fondi discrezionali. La somma resta esattamente 100%.
+# Единственный фонд на внутригрупповое: старый «Rimborso Investimenti» (F11
+# модели, 4%) покрывал то же самое и влит сюда — иначе одна и та же статья
+# оплачивалась бы из двух фондов и ни один не показывал бы правды.
 MARGINE = {
     "iva": 0.35,
     "retrib": 0.24,
     "dividendi": 0.07,
     "debiti": 0.20,
-    "hr": 0.01410687022900764,
-    "ceo": 0.02137404580152672,
-    "sviluppo": 0.02137404580152672,
-    "riserve": 0.01282442748091603,
-    "rimborso": 0.02137404580152672,
-    "formazione": 0.00854961832061069,
-    "affitti": 0.01709923664122138,
-    "so": 0.0232977099236642,
+    "hr": 0.016648648648648647,
+    "ceo": 0.025225225225225224,
+    "sviluppo": 0.025225225225225224,
+    "riserve": 0.015135135135135133,
+    "formazione": 0.010090090090090091,
+    "affitti": 0.020180180180180182,
+    "so": 0.02749549549549572,
 }
 
 ETICHETTE = {
@@ -71,7 +73,6 @@ ETICHETTE = {
     "ceo": "Fondo Emolumento CEO",
     "sviluppo": "Fondo Sviluppo",
     "riserve": "Fondo Riserve",
-    "rimborso": "Fondo Rimborso Investimenti",
     "formazione": "Fondo Formazione",
     "affitti": "Fondo Affitti",
     "so": "Fondo Spese Operative",
